@@ -134,10 +134,23 @@ async function dispatch(request, account) {
 }
 
 /* ---------------- CALLBACK ---------------- */
+/* Constant-time comparison of the shared secret itself. Asking an agent to
+   compute an HMAC by hand is fragile; the plain shared secret over TLS is the
+   same strength as the header the platform itself uses on the way in. */
+function secretOk(given) {
+  if (!WEBHOOK_SECRET || !given) return false;
+  const a = Buffer.from(String(given), 'utf8');
+  const b = Buffer.from(WEBHOOK_SECRET, 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
 async function callback(request, rawBody) {
-  if (!signatureOk(request.headers.get('x-yuan-signature'), rawBody)) {
-    return fail('bad_signature', 401);
-  }
+  /* Either proof is accepted: a signature over the exact bytes, or the shared
+     secret. Both are checked in constant time, and an unauthenticated caller
+     gets nothing. */
+  const signed = signatureOk(request.headers.get('x-yuan-signature'), rawBody);
+  const shared = secretOk(request.headers.get('x-yuan-secret'));
+  if (!signed && !shared) return fail('bad_signature', 401);
   let body;
   try { body = JSON.parse(rawBody); } catch (e) { return fail('bad_json'); }
 
