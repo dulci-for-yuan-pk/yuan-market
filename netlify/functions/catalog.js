@@ -3,7 +3,12 @@
    Search, filter, sort, paginate. Service key stays server-side.
    Supplier contacts and scrape provenance are admin-only.
    ============================================================ */
-import { pgGet, json, configured, currentAccount, publicListing } from '../lib/core.js';
+import { pgGet, pgCount, json, configured, currentAccount, publicListing } from '../lib/core.js';
+
+/* Facet bounds change only when the catalogue changes, so they are cached
+   rather than recomputed on every page view. */
+let facetCache = { at: 0, value: null };
+const FACET_TTL = 10 * 60 * 1000;
 
 const FALLBACK_CATEGORIES = [
   { slug:'kitchen-home', name_en:'Kitchen & Home', name_ur:'باورچی خانہ و گھریلو سامان', name_zh:'厨房与家居' },
@@ -86,12 +91,11 @@ export default async (request) => {
       f += `&or=(title_en.ilike.${enc},title_ur.ilike.${enc},title_zh.ilike.${enc})`;
     }
 
-    const [rows, allIds] = await Promise.all([
+    const [rows, total] = await Promise.all([
       pgGet(`listings?select=${LIST_COLS}&${f}&order=${sort}&limit=${limit}&offset=${offset}`),
-      // exact total so pagination reports the truth, not an estimate
-      pgGet(`listings?select=id&${f}&limit=1000`).catch(() => null)
+      // exact total via the count header — one cheap request, no row transfer
+      pgCount(`listings?${f}`).catch(() => null)
     ]);
-    const total = Array.isArray(allIds) ? allIds.length : null;
 
     const listings = (rows || []).map(l => {
       const out = publicListing(l, role);
@@ -104,20 +108,29 @@ export default async (request) => {
       return out;
     });
 
-    /* Facet bounds so the UI can build honest slider ranges instead of guesses. */
-    let facets = null;
-    try {
-      const bounds = await pgGet(
-        'listings?select=sort_cny_min,moq&status=eq.live&is_demo=eq.false' +
-        '&order=sort_cny_min.asc.nullslast&limit=1000'
-      );
-      const prices = (bounds || []).map(b => Number(b.sort_cny_min)).filter(n => n > 0);
-      const moqs   = (bounds || []).map(b => Number(b.moq)).filter(n => n > 0);
-      if (prices.length) facets = {
-        price_cny: { min: Math.floor(Math.min(...prices)), max: Math.ceil(Math.max(...prices)) },
-        moq: { min: Math.min(...moqs), max: Math.max(...moqs) }
-      };
-    } catch (e) {}
+    /* Facet bounds so the UI builds honest slider ranges instead of guesses.
+       Four tiny ordered queries beat pulling the whole table. */
+    let facets = facetCache.value;
+    if (!facets || Date.now() - facetCache.at > FACET_TTL) {
+      try {
+        const base = 'listings?status=eq.live&is_demo=eq.false';
+        const one = async (col, dir) => {
+          const r = await pgGet(`${base}&select=${col}&${col}=not.is.null&order=${col}.${dir}&limit=1`);
+          return r && r[0] ? Number(r[0][col]) : null;
+        };
+        const [pMin, pMax, mMin, mMax] = await Promise.all([
+          one('sort_cny_min', 'asc'), one('sort_cny_min', 'desc'),
+          one('moq', 'asc'), one('moq', 'desc')
+        ]);
+        if (pMin != null && pMax != null) {
+          facets = {
+            price_cny: { min: Math.floor(pMin), max: Math.ceil(pMax) },
+            moq: { min: mMin, max: mMax }
+          };
+          facetCache = { at: Date.now(), value: facets };
+        }
+      } catch (e) {}
+    }
 
     return json({
       ok:true, configured:true, role, demo,

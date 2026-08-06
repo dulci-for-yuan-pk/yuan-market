@@ -37,6 +37,27 @@ export async function pg(path, init = {}) {
   return text ? JSON.parse(text) : null;
 }
 export const pgGet    = p => pg(p);
+
+/* Exact row count without transferring the rows. PostgREST reports it in
+   Content-Range when asked, so a "total" costs one cheap request instead of
+   pulling a thousand ids across the wire. */
+export async function pgCount(path) {
+  if (!configured()) throw new Error('db_not_configured');
+  const sep = path.includes('?') ? '&' : '?';
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${path}${sep}select=id&limit=1`, {
+    headers: {
+      apikey: SERVICE_KEY,
+      authorization: `Bearer ${SERVICE_KEY}`,
+      'accept-profile': 'market',
+      accept: 'application/json',
+      prefer: 'count=exact'
+    }
+  });
+  if (!r.ok) throw new Error(`pgCount ${r.status}`);
+  const range = r.headers.get('content-range') || '';
+  const n = parseInt(String(range).split('/')[1], 10);
+  return Number.isFinite(n) ? n : null;
+}
 export const pgInsert = (t, rows) => pg(t, { method:'POST', body: JSON.stringify(rows), headers:{ prefer:'return=representation' } });
 export const pgPatch  = (t, rows) => pg(t, { method:'PATCH', body: JSON.stringify(rows), headers:{ prefer:'return=representation' } });
 
