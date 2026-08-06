@@ -77,10 +77,14 @@ export default async (request) => {
     }, 200, { 'cache-control': role === 'guest' ? 'public, max-age=60' : 'no-store' });
 
   } catch (e) {
+    // Surface WHY it failed. A silent "degraded" flag hides real breakage,
+    // which cost us a debugging cycle. The message never contains the key.
+    const reason = String(e && e.message || e).slice(0, 400);
     return json({
       ok:true, configured:true, degraded:true,
       categories:FALLBACK_CATEGORIES, listings:[], count:0,
-      note:'Catalogue temporarily unavailable.'
+      note:'Catalogue temporarily unavailable.',
+      reason
     });
   }
 };
