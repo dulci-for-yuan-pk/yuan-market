@@ -158,7 +158,9 @@ export const newRef = prefix =>
 /* Strip anything a given role must never see. */
 export function publicListing(l, role) {
   const out = {
-    slug:l.slug, code:l.code, title_en:l.title_en, title_ur:l.title_ur, title_zh:l.title_zh,
+    slug:l.slug, code:l.code, title_en:l.title_en, title_ur:l.title_ur,
+    // prefer a curated Chinese title, else the original scraped one
+    title_zh: l.title_zh || l.title_zh_source || null,
     unit:l.unit, moq:l.moq, hero_url:l.hero_url,
     tier:l.tier, status:l.status, category_id:l.category_id,
     // the negotiated yuan price (verified listings only)
@@ -169,7 +171,11 @@ export function publicListing(l, role) {
     listed_price_min:l.listed_price_min,
     listed_price_max:l.listed_price_max,
     price_verified_at:l.price_verified_at, market_price_pkr:l.market_price_pkr,
-    spin_frames:l.spin_frames, model_url:l.model_url, capture_status:l.capture_status
+    spin_frames:l.spin_frames, model_url:l.model_url, capture_status:l.capture_status,
+    // Market district is shown publicly — it proves a real physical stall backs
+    // the listing. The exact booth number and phone stay admin-only so a buyer
+    // cannot bypass us and go straight to the supplier.
+    market_district: l.market_district || null
   };
   // NOTE: source_platform, source_url and source_captured_at are deliberately
   // NOT in the public shape. Naming the marketplace we sourced from, or the
@@ -186,6 +192,9 @@ export function publicListing(l, role) {
     out.source_url = l.source_url;
     out.source_platform = l.source_platform;
     out.source_captured_at = l.source_captured_at;
+    out.supplier_booth = l.supplier_booth;
+    out.supplier_phone = l.supplier_phone;
+    out.supplier_store_url = l.supplier_store_url;
   }
   return out;
 }

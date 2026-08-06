@@ -27,7 +27,7 @@ const LIST_COLS = [
   'sort_cny_min','sort_cny_max','price_tiers',
   'hero_url','tier','status','category_id','capture_status','spin_frames','model_url',
   'source_platform','source_url','source_captured_at','price_verified_at','price_verified_by',
-  'market_price_pkr','supplier_name','supplier_contact','supplier_booth','supplier_phone',
+  'market_price_pkr','supplier_name','supplier_contact','supplier_booth','supplier_phone','title_zh_source',
   'market_district','hs_code','duty_pct_override','seller_id','published_at'
 ].join(',');
 
@@ -86,9 +86,12 @@ export default async (request) => {
     if (Number.isFinite(priceMax)) f += `&sort_cny_min=lte.${priceMax}`;
     if (Number.isFinite(moqMax))   f += `&moq=lte.${moqMax}`;
     if (q) {
-      // search across all three title languages
+      // Search every title field we actually populate. title_zh_source holds the
+      // original Chinese title as scraped — omitting it made Chinese search
+      // silently return nothing.
       const enc = encodeURIComponent(`*${q}*`);
-      f += `&or=(title_en.ilike.${enc},title_ur.ilike.${enc},title_zh.ilike.${enc})`;
+      f += `&or=(title_en.ilike.${enc},title_ur.ilike.${enc},title_zh.ilike.${enc},` +
+           `title_zh_source.ilike.${enc},supplier_name.ilike.${enc})`;
     }
 
     const [rows, total] = await Promise.all([
