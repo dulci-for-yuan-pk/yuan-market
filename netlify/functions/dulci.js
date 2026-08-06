@@ -21,13 +21,16 @@ const SITE = process.env.URL || 'https://yuan.pk';
 
 /* How DULCi's own endpoint wants to be authenticated. Set AGENT_WEBHOOK_AUTH
    in Netlify once we know which form it accepts; 'bearer' is the usual one. */
-const AUTH_STYLE = (process.env.AGENT_WEBHOOK_AUTH || 'bearer').toLowerCase();
+/* The platform's own endpoint asks for this header by name in its 401 body,
+   so it is the default. AGENT_WEBHOOK_AUTH can override it if that changes. */
+const AUTH_STYLE = (process.env.AGENT_WEBHOOK_AUTH || 'hyperagent').toLowerCase();
 
 /* Auth for the OUTBOUND call to DULCi. Separate from x-yuan-signature, which
    proves to us that a callback really came from DULCi. */
 function authHeaders(style) {
   const s = WEBHOOK_SECRET;
   switch (style) {
+    case 'hyperagent':    return { 'x-hyperagent-webhook-secret': s };
     case 'bearer':        return { authorization: 'Bearer ' + s };
     case 'token':         return { authorization: 'Token ' + s };
     case 'x-webhook-secret': return { 'x-webhook-secret': s };
@@ -216,7 +219,7 @@ export default async (request) => {
     if (g.error) return g.error;
     if (!WEBHOOK_URL || !WEBHOOK_SECRET) return fail('webhook_not_configured', 503);
 
-    const styles = ['bearer', 'token', 'x-webhook-secret', 'x-api-key',
+    const styles = ['hyperagent', 'bearer', 'token', 'x-webhook-secret', 'x-api-key',
                     'x-agent-secret', 'x-hyperagent-secret', 'none'];
     const body = JSON.stringify({
       ping: true,
