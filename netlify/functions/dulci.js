@@ -155,9 +155,25 @@ export default async (request) => {
     const g = await requireRole(request, ['admin']);
     if (g.error) return g.error;
     const queued = await pgGet('agent_jobs?select=id&status=eq.queued&limit=100');
+
+    /* Diagnostics that name variables without ever revealing a value — the
+       usual mistake is a near-miss in the name, or a variable scoped to
+       "Builds" only so the function never sees it. */
+    const seen = Object.keys(process.env)
+      .filter(k => /AGENT|DULCI|WEBHOOK|HOOK/i.test(k))
+      .sort();
+    const urlOk = /^https:\/\/\S+$/.test(WEBHOOK_URL);
+
     return json({
       ok: true,
-      webhook_configured: !!(WEBHOOK_URL && WEBHOOK_SECRET),
+      webhook_configured: !!(WEBHOOK_URL && WEBHOOK_SECRET && urlOk),
+      have_url: !!WEBHOOK_URL,
+      url_looks_valid: urlOk,
+      url_host: WEBHOOK_URL ? (() => { try { return new URL(WEBHOOK_URL).host; } catch (e) { return 'unparseable'; } })() : null,
+      have_secret: !!WEBHOOK_SECRET,
+      secret_length: WEBHOOK_SECRET ? WEBHOOK_SECRET.length : 0,
+      expects: ['AGENT_WEBHOOK_URL', 'AGENT_WEBHOOK_SECRET'],
+      similar_names_present: seen,
       callback_url: `${SITE}/api/dulci/callback`,
       queued: (queued || []).length
     });
