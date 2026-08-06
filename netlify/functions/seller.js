@@ -191,4 +191,5 @@ export default async (request) => {
   }
 };
 
-export const config = { path: '/api/seller/*' };
+/* Both forms: '/api/seller/*' alone does not match a bare '/api/seller'. */
+export const config = { path: ['/api/seller', '/api/seller/*'] };
