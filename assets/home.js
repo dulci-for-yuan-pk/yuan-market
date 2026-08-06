@@ -115,9 +115,53 @@
           <a class="btn btn-sm btn-glass btn-block" style="margin-top:11px" href="/p/${esc(l.slug)}/">${esc(Y.t('p.breakdown'))}</a>
         </div>
       </div>
+      ${quickView(l)}
     </article>`;
   }
   window.YuanCard = card;
+
+  /* ---- hover quick-view -------------------------------------------
+     Price, MOQ and a direct add-to-basket without leaving the grid.
+     Quantity defaults to the MOQ, because that is what a wholesale
+     buyer will actually order. */
+  function quickView(l){
+    const r = yuanOf(l);
+    const fx = Y.fx;
+    const pkr = (r && fx && fx.rate) ? Y.n0(r.min * fx.rate) : null;
+    const startQty = l.moq && l.moq > 0 ? l.moq : 1;
+    return `<div class="qv">
+      <div class="qv-row">
+        <div class="qv-price">${r ? `¥ ${Y.n2(r.min)}` : '—'}
+          <small>${pkr ? pkr + ' PKR' : ''}</small></div>
+        <div class="qv-moq">${esc(Y.t('p.moq'))}<b class="num">${Y.n0(l.moq)}</b></div>
+      </div>
+      <div class="qv-acts">
+        <input class="qv-qty" type="number" min="1" value="${startQty}" data-qv-qty
+               aria-label="${esc(Y.t('p.qty'))}">
+        <button class="btn btn-gold" data-qv-add="${esc(l.slug)}">${esc(Y.t('qv.add'))}</button>
+      </div>
+    </div>`;
+  }
+
+  /* add to basket straight from the grid */
+  document.addEventListener('click', async e => {
+    const b = e.target.closest('[data-qv-add]');
+    if (!b) return;
+    e.preventDefault();
+    const card = b.closest('.card');
+    const qtyEl = card && card.querySelector('[data-qv-qty]');
+    const qty = Math.max(parseInt(qtyEl && qtyEl.value, 10) || 1, 1);
+    const acts = b.parentElement;
+    b.disabled = true; b.textContent = '…';
+    try {
+      await Y.api('/api/shop/cart/add', { method:'POST', body:{ slug:b.dataset.qvAdd, qty } });
+      acts.innerHTML = `<div class="qv-done">✓ ${esc(Y.t('qv.added'))}</div>`;
+      Y.bumpCart();
+    } catch (err) {
+      if (err.status === 401) { location.href = '/login/?next=' + encodeURIComponent(location.pathname); return; }
+      b.disabled = false; b.textContent = Y.t('qv.add');
+    }
+  });
 
   function catChip(c){
     const lang = Y.lang();
