@@ -1,0 +1,4 @@
+img/*.jpg
+img/*.png
+node_modules/
+.netlify/

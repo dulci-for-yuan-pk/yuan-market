@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05080C">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@500;600;700&family=Fraunces:opsz,wght@9..144,400..700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/yuan.css">
+<title>All goods — Yuan Market | yuan.pk</title>
+<meta name="description" content="Every product currently available through Yuan Market, with the real Chinese price and full cost transparency.">
+</head>
+<body>
+<div class="field" aria-hidden="true"><i class="f1"></i><i class="f2"></i><i class="f3"></i></div>
+<div class="noise" aria-hidden="true"></div>
+<nav class="nav" id="nav">
+  <a class="brand" href="/"><span class="mark">元</span><span><b>yuan<i>.pk</i></b><small data-t="brand.sub"></small></span></a>
+  <div class="navlinks">
+    <a href="/listings/" class="on" data-t="nav.market"></a>
+    <a href="/#how" data-t="nav.how"></a>
+    <a href="/#pay" data-t="nav.pricing"></a>
+    <a href="/about/" data-t="nav.about"></a>
+  </div>
+  <div class="navtools">
+    <div class="ratepill" id="ratePill"><span class="led"></span><span class="k">¥1 =</span><span class="v num" id="rateVal">—</span></div>
+    <button class="chip sq" id="themeBtn" data-t-aria="act.theme"><span id="themeIco">☾</span></button>
+    <button class="chip" id="langBtn" data-t-aria="act.lang"><span id="langLabel">اردو</span></button>
+    <span id="authSlot"></span>
+    <button class="chip sq burger" id="burger" data-t-aria="nav.menu">☰</button>
+  </div>
+</nav>
+<div class="drawer" id="drawer">
+  <button class="chip sq x" id="drawerX" data-t-aria="nav.close">✕</button>
+  <a href="/listings/" data-t="nav.market"></a>
+  <a href="/#how" data-t="nav.how"></a>
+  <a href="/about/" data-t="nav.about"></a>
+  <a href="/login/" data-t="nav.login"></a>
+</div>
+<main>
+<section class="wide" style="padding-block:clamp(28px,4vw,52px)">
+  <div class="head flip" style="max-width:none">
+    <h1 class="h-l rv" data-t="list.title"></h1>
+    <p class="lede rv d1" style="margin-top:12px" data-t="tier.indicative.help"></p>
+  </div>
+
+  <div class="rv d1" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:24px">
+    <div class="seg" id="tierSeg" role="tablist">
+      <button role="tab" aria-selected="true" data-tier="" data-t="list.all"></button>
+      <button role="tab" aria-selected="false" data-tier="verified" data-t="tier.verified"></button>
+      <button role="tab" aria-selected="false" data-tier="indicative" data-t="tier.indicative"></button>
+    </div>
+    <div id="catChips" style="display:flex;gap:8px;overflow-x:auto;flex:1;min-width:0"></div>
+  </div>
+
+  <div class="dim rv d2" style="font-size:13px;margin-bottom:14px" id="listCount"></div>
+  <div class="grid" id="grid">
+    <div class="skel" style="aspect-ratio:3/4"></div><div class="skel" style="aspect-ratio:3/4"></div>
+    <div class="skel" style="aspect-ratio:3/4"></div><div class="skel" style="aspect-ratio:3/4"></div>
+  </div>
+</section>
+</main>
+<footer class="foot">
+  <div class="shell foot-bar flip">
+    <span class="num ltr">© <span id="yr">2026</span> Yuan.pk Pvt. Ltd.</span>
+    <span class="num" id="fxFoot"></span>
+  </div>
+</footer>
+<script src="/assets/i18n.js"></script>
+<script src="/assets/yuan.js"></script>
+<script src="/assets/home.js"></script>
+<script src="/assets/listings.js"></script>
+</body>
+</html>

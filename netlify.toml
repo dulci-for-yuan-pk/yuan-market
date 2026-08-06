@@ -1,0 +1,37 @@
+[build]
+  publish = "."
+  command = "node scripts/build.mjs"
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# pretty routes for product and category pages
+[[redirects]]
+  from = "/p/*"
+  to = "/product.html"
+  status = 200
+
+[[redirects]]
+  from = "/c/*"
+  to = "/listings/index.html"
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "SAMEORIGIN"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/img/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
