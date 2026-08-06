@@ -402,11 +402,20 @@ body.ur .p-lbl{letter-spacing:.02em;text-transform:none;font-family:var(--urdu);
 body.ur .tier{letter-spacing:0;text-transform:none;font-family:var(--urdu);font-size:11.5px}
 body.zh .tier{letter-spacing:0;text-transform:none;font-family:var(--zh)}
 .tier-verified{background:color-mix(in srgb,var(--ok) 22%,transparent);color:var(--ok);border:1px solid color-mix(in srgb,var(--ok) 42%,transparent)}
-.tier-indicative{background:color-mix(in srgb,var(--warn) 20%,transparent);color:var(--warn);border:1px solid color-mix(in srgb,var(--warn) 40%,transparent)}
-/* indicative cards read as provisional: dashed edge, slightly recessed */
-.card.is-indicative{border-style:dashed;border-color:color-mix(in srgb,var(--warn) 30%,var(--hair))}
-.card.is-indicative .card-img{opacity:.94}
-.card.is-verified{border-color:color-mix(in srgb,var(--ok) 22%,var(--hair))}
+/* Every card presents as a full product. Unvisited listings carry no
+   negative treatment; they simply state that the price is confirmed on order. */
+.card.is-verified{border-color:color-mix(in srgb,var(--ok) 24%,var(--hair))}
+.confirm-note{
+  display:inline-flex;align-items:center;gap:6px;
+  font-size:11px;font-weight:650;color:var(--accent);
+  padding:4px 9px;border-radius:99px;
+  background:color-mix(in srgb,var(--accent) 12%,transparent);
+  border:1px solid color-mix(in srgb,var(--accent) 26%,transparent);
+  line-height:1.35;
+}
+.confirm-note::before{content:"✓";font-weight:800;opacity:.85}
+body.ur .confirm-note{font-family:var(--urdu);font-size:12px}
+body.zh .confirm-note{font-family:var(--zh)}
 
 .srcline{font-size:11px;color:var(--fg-3);display:flex;align-items:center;gap:5px;flex-wrap:wrap}
 .srcline a{color:var(--accent);text-decoration:underline;text-underline-offset:2px}

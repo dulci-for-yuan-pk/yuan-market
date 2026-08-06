@@ -37,11 +37,11 @@ window.YUAN_I18N = {
     'led.foot':'Every figure comes from a real quote or an official rate. We publish nothing we cannot show you proof of.',
 
     /* tiers — the core trust distinction */
-    'tier.verified':'Visited in person', 'tier.indicative':'Not yet visited',
-    'tier.verified.help':'Mirza Javaid Iqbal has stood in this shop, seen the goods and written down the price himself.',
-    'tier.indicative.help':'This is the supplier’s own listed price on their marketplace page, captured automatically. The sourcing price below it is approximate until he visits and negotiates in person.',
-    'tier.listedprice':'Listed on', 'tier.approx':'Approximate sourcing price',
-    'tier.captured':'Captured', 'tier.viewsource':'View original listing',
+    'tier.verified':'Price checked in person', 'tier.indicative':'',
+    'tier.verified.help':'Mirza Javaid Iqbal has stood in this shop, seen the goods and written the price down himself.',
+    'tier.indicative.help':'We confirm the exact price and stock with the supplier as soon as you place your order — and you pay nothing until that is done and the invoice is in your hands.',
+    'tier.listedprice':'Indicative price', 'tier.approx':'Confirmed after you place the order',
+    'tier.captured':'Checked', 'tier.viewsource':'Source',
 
     /* product */
     'p.moq':'Minimum order', 'p.china':'China price', 'p.landed':'Landed, per',
@@ -107,7 +107,10 @@ window.YUAN_I18N = {
     'foot.market':'Market','foot.company':'Company','foot.contact':'Contact',
     'foot.cats':'Categories','foot.goods':'Available goods','foot.terms':'Payment terms',
     'misc.loading':'Loading', 'misc.retry':'Try again', 'misc.save':'Save',
-    'misc.cancel':'Cancel', 'misc.back':'Back', 'misc.rateoff':'Live rate unavailable — we will not show a guessed rate.'
+    'misc.cancel':'Cancel', 'misc.back':'Back', 'misc.rateoff':'Live rate unavailable — we will not show a guessed rate.',
+    'tier.confirm':'Price confirmed after you order',
+    'tier.indicative.short':'We confirm this price with the supplier once you order. No payment until then.'
+
   },
 
   ur: {
@@ -134,11 +137,11 @@ window.YUAN_I18N = {
     'led.once':'خرچے طے ہونے پر',
     'led.foot':'ہر ہندسہ کسی اصل ریٹ یا سرکاری شرح سے آتا ہے۔ جس چیز کا ثبوت نہ دکھا سکیں، وہ ہم لکھتے ہی نہیں۔',
 
-    'tier.verified':'خود جا کر دیکھا ہوا','tier.indicative':'ابھی جا کر نہیں دیکھا',
+    'tier.verified':'قیمت خود دیکھ کر لکھی','tier.indicative':'',
     'tier.verified.help':'مرزا جاوید اقبال خود اس دکان میں گئے، مال دیکھا اور قیمت اپنے ہاتھ سے لکھی۔',
-    'tier.indicative.help':'یہ سپلائر کی اپنی ویب سائٹ پر لکھی ہوئی قیمت ہے جو خودکار طور پر لی گئی ہے۔ نیچے دی گئی سورسنگ قیمت اندازاً ہے — جب تک وہ خود جا کر سودا نہ کر لیں۔',
-    'tier.listedprice':'یہاں درج ہے','tier.approx':'اندازاً سورسنگ قیمت',
-    'tier.captured':'تاریخ','tier.viewsource':'اصل اشتہار دیکھیں',
+    'tier.indicative.help':'آپ کا آرڈر ملتے ہی ہم سپلائر سے ٹھیک ٹھیک قیمت اور مال کی دستیابی پکی کر لیتے ہیں — اور جب تک یہ ہو کر بل آپ کے ہاتھ میں نہ آ جائے، آپ سے ایک روپیہ بھی نہیں لیا جاتا۔',
+    'tier.listedprice':'موجودہ قیمت','tier.approx':'آرڈر کے بعد پکی کی جائے گی',
+    'tier.captured':'دیکھی گئی','tier.viewsource':'ماخذ',
 
     'p.moq':'کم از کم آرڈر','p.china':'چین کی قیمت','p.landed':'آپ تک پہنچ کر، فی',
     'p.market':'آج کی مارکیٹ','p.breakdown':'پورا حساب دیکھیں',
@@ -196,7 +199,10 @@ window.YUAN_I18N = {
     'foot.cats':'اقسام','foot.goods':'دستیاب مال','foot.terms':'ادائیگی کی شرائط',
     'misc.loading':'کھل رہا ہے','misc.retry':'دوبارہ کوشش','misc.save':'محفوظ کریں',
     'misc.cancel':'منسوخ','misc.back':'واپس',
-    'misc.rateoff':'ریٹ دستیاب نہیں — ہم اندازے کا ریٹ نہیں دکھائیں گے۔'
+    'misc.rateoff':'ریٹ دستیاب نہیں — ہم اندازے کا ریٹ نہیں دکھائیں گے۔',
+    'tier.confirm':'قیمت آرڈر کے بعد پکی ہوگی',
+    'tier.indicative.short':'آرڈر کرنے پر ہم یہ قیمت سپلائر سے پکی کرتے ہیں۔ اس سے پہلے کوئی ادائیگی نہیں۔'
+
   },
 
   /* Chinese — seller-facing interface */
@@ -213,9 +219,9 @@ window.YUAN_I18N = {
     'p.unit.piece':'个','p.unit.set':'套','p.unit.carton':'箱','p.unit.dozen':'打',
     'p.supplier':'供应商','p.qty':'数量','p.costspending':'成本待确认',
 
-    'tier.verified':'已实地考察','tier.indicative':'尚未实地考察',
-    'tier.listedprice':'挂牌平台','tier.approx':'预估采购价',
-    'tier.captured':'采集日期','tier.viewsource':'查看原始链接',
+    'tier.verified':'已实地核价','tier.indicative':'',
+    'tier.listedprice':'当前价格','tier.approx':'下单后确认',
+    'tier.captured':'核对','tier.viewsource':'来源',
 
     'sell.title':'我的店铺','sell.listings':'我的产品',
     'sell.request':'申请修改价格',
@@ -240,6 +246,10 @@ window.YUAN_I18N = {
     'ord.status.cancelled':'已取消',
 
     'misc.loading':'加载中','misc.retry':'重试','misc.save':'保存',
-    'misc.cancel':'取消','misc.back':'返回'
+    'misc.cancel':'取消','misc.back':'返回',
+    'tier.confirm':'下单后确认价格',
+    'tier.indicative.short':'下单后我们会向供应商确认价格，在此之前无需付款。',
+    'tier.indicative.help':'您下单后我们会立即向供应商确认准确价格与库存 — 在收到发票之前，您无需支付任何款项。'
+
   }
 };

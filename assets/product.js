@@ -36,33 +36,25 @@
              style="width:100%;height:100%;object-fit:cover">`
       : `<div class="void" style="display:grid;place-items:center;height:100%;color:var(--fg-3)">—</div>`;
 
-    /* price rows: real numbers only, honest gaps otherwise */
-    let priceRows = '';
-    if (verified && L.cny_unit_price != null){
-      const pkr = Y.fx ? Y.pkr(L.cny_unit_price * Y.fx.rate) : '—';
-      priceRows = `
-        <div class="lrow"><span class="l"><i></i><span data-t="led.goods"></span></span>
-          <span class="a num">¥ ${Y.n2(L.cny_unit_price)}</span></div>
-        <div class="lrow"><span class="l"><i></i><span data-t="led.conv"></span></span>
-          <span class="a num">${pkr}</span></div>`;
-    } else {
-      const sym = SYM[L.listed_currency] || '';
-      const range = (L.listed_price_min != null && L.listed_price_max != null
-                     && Number(L.listed_price_max) > Number(L.listed_price_min))
-        ? `${Y.n2(L.listed_price_min)}–${Y.n2(L.listed_price_max)}`
-        : (L.listed_price_min != null ? Y.n2(L.listed_price_min) : '—');
-      priceRows = `
-        <div class="lrow"><span class="l"><i></i><span>${esc(Y.t('tier.listedprice'))} ${esc(L.source_platform || '')}</span></span>
-          <span class="a num">${sym} ${range} ${esc(L.listed_currency || '')}</span></div>
-        <div class="lrow pend"><span class="l"><i></i><span data-t="led.goods"></span></span>
-          <span class="a" data-t="tier.approx"></span></div>`;
-    }
+    /* Prices are shown in YUAN and RUPEES only, at the live cross-checked
+       rate. A supplier price published in USD/EUR/GBP is normalised to yuan
+       through that same rate; the exact figure is confirmed with the supplier
+       once an order is placed, and nothing is charged before then. */
+    const cny = window.YuanPriceOf ? window.YuanPriceOf(L) : null;
+    const pkr = (cny != null && Y.fx && Y.fx.rate) ? cny * Y.fx.rate : null;
+    const priceRows = `
+      <div class="lrow"><span class="l"><i></i><span>${esc(verified ? Y.t('p.china') : Y.t('tier.listedprice'))}</span></span>
+        <span class="a num">${cny == null ? '—' : '¥ ' + Y.n2(cny)}</span></div>
+      <div class="lrow"><span class="l"><i></i><span data-t="led.conv"></span></span>
+        <span class="a num">${pkr == null ? '—' : Y.pkr(pkr)}</span></div>
+      ${verified ? '' : `<div class="lrow"><span class="l"><i></i><span>${esc(Y.t('tier.approx'))}</span></span>
+        <span class="a"><span class="confirm-note">${esc(Y.t('tier.confirm'))}</span></span></div>`}`;
 
     box.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(20px,3.4vw,48px);align-items:start">
 
       <div class="glass spec rv" style="border-radius:var(--r-xl);overflow:hidden;aspect-ratio:1/1;position:relative">
-        <span class="tier ${verified ? 'tier-verified' : 'tier-indicative'}">${esc(Y.t(verified ? 'tier.verified' : 'tier.indicative'))}</span>
+        ${verified ? `<span class="tier tier-verified">${esc(Y.t('tier.verified'))}</span>` : ''}
         ${img}
       </div>
 
@@ -73,12 +65,7 @@
         <div class="glass" style="border-radius:var(--r-m);padding:14px 16px;margin-bottom:18px">
           <p class="muted" style="font-size:13.5px;line-height:1.7">
             ${esc(Y.t(verified ? 'tier.verified.help' : 'tier.indicative.help'))}</p>
-          ${(!verified && L.source_url) ? `
-            <div class="srcline" style="margin-top:11px">
-              <span>${esc(Y.t('tier.captured'))}</span>
-              <span class="num">${esc(Y.date(L.source_captured_at))}</span>
-              <a href="${esc(L.source_url)}" target="_blank" rel="noopener noreferrer nofollow">${esc(Y.t('tier.viewsource'))}</a>
-            </div>` : ''}
+          ${verified ? '' : `<div style="margin-top:11px"><span class="confirm-note">${esc(Y.t('tier.confirm'))}</span></div>`}
         </div>
 
         <div style="display:flex;flex-wrap:wrap;gap:22px;margin-bottom:20px">

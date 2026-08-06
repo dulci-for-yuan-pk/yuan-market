@@ -27,27 +27,43 @@
     return Y.t(key) || u || '';
   }
 
-  /* ---- price block ------------------------------------------------
-     A verified listing has a real negotiated yuan price.
-     An indicative listing only has the supplier's own marketplace
-     price, in whatever currency that page showed. We display it as
-     that currency and label it clearly — never as yuan, never as a
-     landed price we cannot yet compute.                            */
+  /* ---- pricing ----------------------------------------------------
+     The market quotes in YUAN and RUPEES only, at the live
+     cross-checked rate. A verified listing has a real negotiated
+     yuan price. An indicative listing has the supplier's published
+     price, which may have been listed in USD/EUR/GBP — that gets
+     normalised to yuan through the same live rate, and is labelled
+     as confirmed with the supplier once an order is placed.
+     If the rate feed is down we show nothing rather than a guess. */
+  function yuanOf(l){
+    if (l.tier === 'verified' && l.cny_unit_price != null) return Number(l.cny_unit_price);
+    const fx = Y.fx;
+    if (!fx || !fx.to_cny) return null;
+    const k = fx.to_cny[l.listed_currency];
+    if (!(k > 0)) return null;
+    const base = (l.listed_price_min != null) ? Number(l.listed_price_min) : null;
+    return base == null ? null : base * k;
+  }
+  window.YuanPriceOf = yuanOf;
+
   function priceBlock(l){
-    if (l.tier === 'verified' && l.cny_unit_price != null){
-      return `
-        <div class="p-lbl">${esc(Y.t('p.china'))}</div>
-        <div class="p-val num">${SYM.CNY} ${Y.n2(l.cny_unit_price)}<small>/ ${esc(unitLabel(l.unit))}</small></div>
-        <div class="await" style="margin-top:7px">${esc(Y.t('p.costspending'))}</div>`;
-    }
-    const sym = SYM[l.listed_currency] || '';
-    const min = l.listed_price_min, max = l.listed_price_max;
-    const range = (min != null && max != null && Number(max) > Number(min))
-      ? `${Y.n2(min)}–${Y.n2(max)}` : (min != null ? Y.n2(min) : '—');
-    return `
-      <div class="p-lbl">${esc(Y.t('tier.listedprice'))} ${esc(l.source_platform || '')}</div>
-      <div class="p-val num">${sym} ${range}<small>${esc(l.listed_currency || '')} / ${esc(unitLabel(l.unit))}</small></div>
-      <div class="await" style="margin-top:7px">${esc(Y.t('tier.approx'))}</div>`;
+    const verified = l.tier === 'verified';
+    const cny = yuanOf(l);
+    const fx = Y.fx;
+    const pkr = (cny != null && fx && fx.rate) ? cny * fx.rate : null;
+
+    const label = verified ? Y.t('p.china') : Y.t('tier.listedprice');
+    const main = (cny == null)
+      ? `<div class="p-val">—</div>`
+      : `<div class="p-val num">${SYM.CNY} ${Y.n2(cny)}<small>/ ${esc(unitLabel(l.unit))}</small></div>
+         <div class="num" style="font-size:13.5px;font-weight:650;color:var(--fg-2);margin-top:3px">
+           ${pkr == null ? '—' : Y.pkr(pkr)}</div>`;
+
+    const note = verified
+      ? `<div class="await" style="margin-top:7px">${esc(Y.t('p.costspending'))}</div>`
+      : `<div class="confirm-note" style="margin-top:8px">${esc(Y.t('tier.confirm'))}</div>`;
+
+    return `<div class="p-lbl">${esc(label)}</div>${main}${note}`;
   }
 
   function card(l){
@@ -57,16 +73,18 @@
               onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'void',textContent:'—'}))">`
       : `<div class="void">${esc(Y.t('list.empty.h'))}</div>`;
 
-    const src = (!verified && l.source_url)
-      ? `<div class="srcline">
-           <span>${esc(Y.t('tier.captured'))}</span>
-           <span class="num">${esc(Y.date(l.source_captured_at))}</span>
-           <a href="${esc(l.source_url)}" target="_blank" rel="noopener noreferrer nofollow">${esc(Y.t('tier.viewsource'))}</a>
-         </div>` : '';
+    // Provenance (source URL / capture date) is deliberately NOT shown to
+    // buyers — it reads as second-hand data. Admin sees it in the console.
+    const src = '';
 
-    return `<article class="card rv ${verified ? 'is-verified' : 'is-indicative'}">
+    // Only the positive badge is public. An unvisited listing simply carries
+    // no badge, so nothing on the card undercuts the presentation.
+    const badge = verified
+      ? `<span class="tier tier-verified">${esc(Y.t('tier.verified'))}</span>` : '';
+
+    return `<article class="card rv ${verified ? 'is-verified' : ''}">
       <div class="card-img">
-        <span class="tier ${verified ? 'tier-verified' : 'tier-indicative'}">${esc(Y.t(verified ? 'tier.verified' : 'tier.indicative'))}</span>
+        ${badge}
         ${img}
       </div>
       <div class="card-b flip">

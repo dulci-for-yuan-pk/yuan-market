@@ -142,7 +142,8 @@ export function publicListing(l, role) {
     price_verified_at:l.price_verified_at, market_price_pkr:l.market_price_pkr,
     spin_frames:l.spin_frames, model_url:l.model_url, capture_status:l.capture_status
   };
-  if (l.tier === 'indicative') out.source_url = l.source_url; // provenance is public for honesty
+  // Source URL and capture provenance are ADMIN-ONLY. Buyers see a clear
+  // "price confirmed after you order" promise instead of a scrape trail.
   if (role === 'admin') {
     out.id = l.id;
     out.seller_id = l.seller_id;
