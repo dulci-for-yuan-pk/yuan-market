@@ -134,7 +134,18 @@ export async function computeLanded(o) {
   if (seaRate.value != null && o.cbm > 0 && usdCny > 0) {
     freightPkr = seaRate.value * Number(o.cbm) * usdCny * rate;
   }
-  push('freight', seaRate, freightPkr, { needs: o.cbm ? null : 'carton CBM not known for this listing' });
+  /* Freight can only be as good as the volume behind it. If that volume is our
+     derivation rather than the supplier's declaration, the line says so — a
+     buyer told the difference can decide for himself whether to press us. */
+  push('freight', o.cbm && o.cbm_basis && o.cbm_basis !== 'declared_cartons' && o.cbm_basis !== 'supplier_declared'
+      ? { ...seaRate, basis: 'estimated',
+          caveat: 'Charged on an estimated carton volume — see how the volume was worked out on the product page.' }
+      : seaRate,
+    freightPkr, {
+      needs: o.cbm ? null : 'carton volume not known for this listing',
+      volume_basis: o.cbm_basis || null,
+      cbm: o.cbm || null
+    });
 
   /* 3. customs duty — per category, per HS code. Never averaged. */
   const dutyKey = DUTY_KEY_BY_CATEGORY[o.category_slug] || null;
@@ -186,7 +197,8 @@ export async function computeLanded(o) {
   const inland = r('inland_karachi_to_multan_pkr_per_cbm');
   push('inland', inland,
        (inland.value != null && o.cbm > 0) ? inland.value * Number(o.cbm) : null,
-       { needs: o.cbm ? null : 'carton CBM not known for this listing' });
+       { needs: o.cbm ? null : 'carton volume not known for this listing',
+         volume_basis: o.cbm_basis || null });
 
   /* 8. bank / remittance cost — paying a Chinese supplier is not free */
   const bank = r('bank_lc_pct');

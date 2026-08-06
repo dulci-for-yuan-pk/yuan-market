@@ -28,7 +28,26 @@ function unitCnyOf(l, rates) {
 
 const LISTING_COLS = 'id,slug,title_en,title_ur,title_zh,title_zh_source,unit,moq,hero_url,' +
   'cny_unit_price,listed_currency,listed_price_min,listed_price_max,category_id,' +
-  'carton_qty,carton_cbm,status';
+  'carton_qty,carton_cbm,cbm_per_piece,carton_source,carton_note,status';
+
+/* Volume of a line, in CBM.
+
+   Prefer whole cartons when the supplier actually declared a carton and how
+   many pieces go in it — a shipping line charges for the carton, not for the
+   theoretical volume of loose goods. Otherwise fall back to the per-piece
+   volume, which every listing now has, and say which was used so a quote can
+   mark the freight line confirmed or estimated. */
+function lineVolume(l, qty) {
+  const perCarton = Number(l.carton_cbm) > 0 ? Number(l.carton_cbm) : null;
+  const perBox    = Number(l.carton_qty) > 0 ? Number(l.carton_qty) : null;
+  if (perCarton && perBox) {
+    const cartons = Math.ceil(qty / perBox);
+    return { cbm: cartons * perCarton, cartons, basis: 'declared_cartons' };
+  }
+  const pp = Number(l.cbm_per_piece) > 0 ? Number(l.cbm_per_piece) : null;
+  if (pp) return { cbm: pp * qty, cartons: null, basis: l.carton_source || 'per_piece' };
+  return { cbm: null, cartons: null, basis: 'unknown' };
+}
 
 /* ---------------- CONSOLIDATION WINDOWS ---------------- */
 async function windows(request) {
@@ -105,8 +124,8 @@ async function cartView(request, account) {
     if (!l) continue;
     const unit = unitCnyOf(l, rates);
     const belowMoq = l.moq != null && it.qty < l.moq;
-    const cartons = l.carton_qty > 0 ? Math.ceil(it.qty / l.carton_qty) : null;
-    const cbm = (cartons && l.carton_cbm > 0) ? cartons * Number(l.carton_cbm) : null;
+    const vol = lineVolume(l, it.qty);
+    const cartons = vol.cartons, cbm = vol.cbm;
     if (cbm == null) anyMissing = true; else totalCbm += cbm;
     if (unit != null) goodsCny += unit * it.qty;
 
@@ -129,7 +148,13 @@ async function cartView(request, account) {
   for (const ln of lines) {
     if (ln.line_cny == null) continue;
     const k = ln.category_slug || 'unknown';
-    perCategory[k] = perCategory[k] || { goods_cny: 0, cbm: 0, units: 0 };
+    perCategory[k] = perCategory[k] || { goods_cny: 0, cbm: 0, units: 0, cbm_basis: null };
+    /* A group is only as trustworthy as its weakest line. */
+    if (vol.basis !== 'declared_cartons' && vol.basis !== 'supplier_declared') {
+      perCategory[k].cbm_basis = vol.basis;
+    } else if (!perCategory[k].cbm_basis) {
+      perCategory[k].cbm_basis = vol.basis;
+    }
     perCategory[k].goods_cny += ln.line_cny;
     perCategory[k].cbm += ln.cbm || 0;
     perCategory[k].units += ln.qty || 0;
@@ -141,7 +166,7 @@ async function cartView(request, account) {
     const landed = await computeLanded({
       goods_cny: g.goods_cny, category_slug: slug === 'unknown' ? null : slug,
       units: g.units || 0,
-      fx: rates, cbm: g.cbm || null
+      fx: rates, cbm: g.cbm || null, cbm_basis: g.cbm_basis || null
     });
     if (!landed.ok) continue;
     groups.push({ category_slug: slug, ...landed });
@@ -273,11 +298,16 @@ async function checkout(request, body, account) {
     if (!l) continue;
     const unit = unitCnyOf(l, rates);
     if (unit == null) return fail('item_unpriced', 409, { slug: l.slug });
-    const cartons = l.carton_qty > 0 ? Math.ceil(it.qty / l.carton_qty) : null;
-    const cbm = (cartons && l.carton_cbm > 0) ? cartons * Number(l.carton_cbm) : 0;
+    const vol = lineVolume(l, it.qty);
+    const cartons = vol.cartons, cbm = vol.cbm || 0;
     goodsCny += unit * it.qty; totalCbm += cbm;
     const slug = catById[l.category_id] || 'unknown';
-    perCategory[slug] = perCategory[slug] || { goods_cny: 0, cbm: 0, units: 0 };
+    perCategory[slug] = perCategory[slug] || { goods_cny: 0, cbm: 0, units: 0, cbm_basis: null };
+    if (vol.basis !== 'declared_cartons' && vol.basis !== 'supplier_declared') {
+      perCategory[slug].cbm_basis = vol.basis;
+    } else if (!perCategory[slug].cbm_basis) {
+      perCategory[slug].cbm_basis = vol.basis;
+    }
     perCategory[slug].goods_cny += unit * it.qty;
     perCategory[slug].cbm += cbm;
     perCategory[slug].units += it.qty;
@@ -295,7 +325,7 @@ async function checkout(request, body, account) {
     const landed = await computeLanded({
       goods_cny: g.goods_cny, category_slug: slug === 'unknown' ? null : slug,
       units: g.units || 0,
-      fx: rates, cbm: g.cbm || null
+      fx: rates, cbm: g.cbm || null, cbm_basis: g.cbm_basis || null
     });
     if (!landed.ok) continue;
     subtotal += landed.subtotal_cost_pkr;

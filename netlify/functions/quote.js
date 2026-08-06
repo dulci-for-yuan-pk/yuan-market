@@ -13,6 +13,26 @@ async function liveFx(request) {
   return d && d.ok ? d : null;
 }
 
+
+/* Volume of a line, in CBM.
+
+   Prefer whole cartons when the supplier actually declared a carton and how
+   many pieces go in it — a shipping line charges for the carton, not for the
+   theoretical volume of loose goods. Otherwise fall back to the per-piece
+   volume, which every listing now has, and say which was used so a quote can
+   mark the freight line confirmed or estimated. */
+function lineVolume(l, qty) {
+  const perCarton = Number(l.carton_cbm) > 0 ? Number(l.carton_cbm) : null;
+  const perBox    = Number(l.carton_qty) > 0 ? Number(l.carton_qty) : null;
+  if (perCarton && perBox) {
+    const cartons = Math.ceil(qty / perBox);
+    return { cbm: cartons * perCarton, cartons, basis: 'declared_cartons' };
+  }
+  const pp = Number(l.cbm_per_piece) > 0 ? Number(l.cbm_per_piece) : null;
+  if (pp) return { cbm: pp * qty, cartons: null, basis: l.carton_source || 'per_piece' };
+  return { cbm: null, cartons: null, basis: 'unknown' };
+}
+
 export default async (request) => {
   if (!configured()) return fail('db_not_configured', 503);
   const p = new URL(request.url).searchParams;
@@ -23,7 +43,7 @@ export default async (request) => {
   try {
     const rows = await pgGet(
       'listings?select=id,slug,title_en,unit,moq,cny_unit_price,listed_currency,' +
-      'listed_price_min,listed_price_max,sort_cny_min,category_id,carton_cbm,carton_qty,hs_code' +
+      'listed_price_min,listed_price_max,sort_cny_min,category_id,carton_cbm,carton_qty,cbm_per_piece,carton_source,carton_note,hs_code' +
       `&slug=eq.${encodeURIComponent(slug)}&status=eq.live&limit=1`
     );
     const l = rows && rows[0];
@@ -49,8 +69,8 @@ export default async (request) => {
 
     const quantity = qty > 0 ? qty : (l.moq || 1);
     // carton CBM scales with how many cartons the quantity needs
-    const cartons = (l.carton_qty > 0) ? Math.ceil(quantity / l.carton_qty) : null;
-    const cbm = (cartons && l.carton_cbm > 0) ? cartons * Number(l.carton_cbm) : null;
+    const vol = lineVolume(l, quantity);
+    const cartons = vol.cartons, cbm = vol.cbm;
 
     const landed = await computeLanded({
       goods_cny: unitCny * quantity,
@@ -65,7 +85,7 @@ export default async (request) => {
       ok: true,
       listing: { slug: l.slug, title_en: l.title_en, unit: l.unit, moq: l.moq, hs_code: l.hs_code },
       quantity, unit_cny: Number(unitCny.toFixed(4)),
-      cartons, cbm,
+      cartons, cbm, cbm_basis: vol.basis,
       per_unit_pkr: Math.round(landed.total_pkr / quantity),
       ...landed
     }, 200, { 'cache-control': 'public, max-age=120' });

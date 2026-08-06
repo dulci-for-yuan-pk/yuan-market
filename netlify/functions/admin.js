@@ -124,7 +124,7 @@ const ADMIN_LIST_COLS = [
   'sort_cny_min','hero_url','tier','status','visited_in_person','capture_status',
   'supplier_name','supplier_booth','supplier_contact','supplier_phone','supplier_store_url',
   'market_district','source_platform','source_url','source_captured_at',
-  'hs_code','duty_pct_override','carton_qty','carton_cbm','market_price_pkr','published_at'
+  'hs_code','duty_pct_override','carton_qty','carton_cbm','cbm_per_piece','carton_source','market_price_pkr','published_at'
 ].join(',');
 
 async function listListings(request) {
@@ -149,7 +149,7 @@ async function listListings(request) {
 
 const EDITABLE = new Set([
   'title_en','title_ur','title_zh','unit','moq','cny_unit_price','hs_code',
-  'duty_pct_override','carton_qty','carton_cbm','market_price_pkr','market_price_source',
+  'duty_pct_override','carton_qty','carton_cbm','cbm_per_piece','carton_note','market_price_pkr','market_price_source',
   'status','visited_in_person','category_id','hero_url','desc_en','desc_ur','desc_zh',
   'supplier_name','supplier_booth','supplier_phone','supplier_contact','market_district'
 ]);
@@ -467,7 +467,7 @@ async function quotePreview(request) {
 
   const rows = await pgGet(
     'listings?select=id,title_en,cny_unit_price,listed_currency,listed_price_min,' +
-    `category_id,carton_qty,carton_cbm&id=eq.${id}&limit=1`
+    `category_id,carton_qty,carton_cbm,cbm_per_piece,carton_source,carton_note&id=eq.${id}&limit=1`
   );
   const l = rows && rows[0];
   if (!l) return fail('not_found', 404);
@@ -487,12 +487,13 @@ async function quotePreview(request) {
   }
   if (unitCny == null) return fail('no_price', 409);
 
-  const cartons = l.carton_qty > 0 ? Math.ceil(qty / l.carton_qty) : null;
+  const vol = lineVolume(l, qty);
+  const cartons = vol.cartons;
   const landed = await computeLanded({
     goods_cny: unitCny * qty,
     category_slug: cat && cat[0] ? cat[0].slug : null,
     listing_id: l.id, fx,
-    cbm: (cartons && l.carton_cbm > 0) ? cartons * Number(l.carton_cbm) : null
+    cbm: vol.cbm
   });
   return json({ ok: true, quantity: qty, unit_cny: unitCny, ...landed });
 }
@@ -544,6 +545,26 @@ const pick = (o, keys) => {
   keys.forEach(k => { if (k in o) out[k] = o[k]; });
   return out;
 };
+
+
+/* Volume of a line, in CBM.
+
+   Prefer whole cartons when the supplier actually declared a carton and how
+   many pieces go in it — a shipping line charges for the carton, not for the
+   theoretical volume of loose goods. Otherwise fall back to the per-piece
+   volume, which every listing now has, and say which was used so a quote can
+   mark the freight line confirmed or estimated. */
+function lineVolume(l, qty) {
+  const perCarton = Number(l.carton_cbm) > 0 ? Number(l.carton_cbm) : null;
+  const perBox    = Number(l.carton_qty) > 0 ? Number(l.carton_qty) : null;
+  if (perCarton && perBox) {
+    const cartons = Math.ceil(qty / perBox);
+    return { cbm: cartons * perCarton, cartons, basis: 'declared_cartons' };
+  }
+  const pp = Number(l.cbm_per_piece) > 0 ? Number(l.cbm_per_piece) : null;
+  if (pp) return { cbm: pp * qty, cartons: null, basis: l.carton_source || 'per_piece' };
+  return { cbm: null, cartons: null, basis: 'unknown' };
+}
 
 /* ---------------- INVOICES ---------------- */
 async function issueInvoice(request, body, account) {
