@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05080C">
+<meta name="robots" content="noindex,nofollow">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@500;600;700&family=Fraunces:opsz,wght@9..144,400..700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/yuan.css?v=69f90e76">
+<link rel="stylesheet" href="/assets/admin.css">
+<title>Admin — Yuan Market</title>
+</head>
+<body>
+<div class="field" aria-hidden="true"><i class="f1"></i><i class="f2"></i><i class="f3"></i></div>
+<div class="noise" aria-hidden="true"></div>
+
+<!-- ===== SIGN IN GATE ===== -->
+<section id="gate" class="shell" style="max-width:460px;padding-block:clamp(28px,6vw,72px)">
+  <div class="glass-2" style="border-radius:var(--r-2xl);padding:clamp(22px,4vw,36px)">
+    <div style="display:flex;align-items:center;gap:11px;margin-bottom:22px">
+      <span class="mark">元</span>
+      <div>
+        <div style="font-family:var(--display);font-weight:680;font-size:18px">Yuan Market</div>
+        <div class="dim" style="font-size:11.5px;letter-spacing:.18em;text-transform:uppercase;font-weight:700">Admin</div>
+      </div>
+    </div>
+    <div id="gateErr" class="err" style="display:none;margin-bottom:14px;padding:11px 14px;border-radius:12px;
+         background:color-mix(in srgb,var(--bad) 12%,transparent);border:1px solid color-mix(in srgb,var(--bad) 32%,transparent)"></div>
+    <form id="adminLogin">
+      <label class="field-l">Email</label>
+      <input class="inp ltr" type="email" name="email" autocomplete="username" required
+             placeholder="javaid.yuan.pk@gmail.com">
+      <div style="height:14px"></div>
+      <label class="field-l">Password</label>
+      <input class="inp" type="password" name="password" autocomplete="current-password" required>
+      <div style="height:20px"></div>
+      <button class="btn btn-gold btn-block btn-lg" type="submit">Sign in</button>
+    </form>
+    <div style="margin-top:18px;padding-top:16px;border-top:1px solid var(--hair)">
+      <button class="btn btn-ghost btn-block btn-sm" id="needSetup">
+        First time, or forgot the password?</button>
+      <div id="bootstrapOut" style="display:none;margin-top:14px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== CONSOLE ===== -->
+<div id="console" style="display:none">
+  <nav class="nav" id="nav">
+    <a class="brand" href="/admin/">
+      <span class="mark">元</span>
+      <span><b>yuan<i>.pk</i></b><small>Admin</small></span>
+    </a>
+    <div class="navtools" style="margin-inline-start:auto">
+      <div class="ratepill" id="ratePill"><span class="led"></span><span class="k">¥1 =</span><span class="v num" id="rateVal">—</span></div>
+      <button class="chip sq" id="themeBtn" title="Day or night"><span id="themeIco">☾</span></button>
+      <span class="chip" id="whoami" style="max-width:200px;overflow:hidden;text-overflow:ellipsis"></span>
+      <button class="chip" id="signOut">Sign out</button>
+    </div>
+  </nav>
+
+  <div class="adm-shell">
+    <aside class="adm-side glass" id="admNav"></aside>
+    <main class="adm-main" id="admMain">
+      <div class="skel" style="height:40vh;border-radius:var(--r-l)"></div>
+    </main>
+  </div>
+</div>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet glass-sheet" id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
+
+<script src="/assets/i18n.js?v=717b33b3"></script>
+<script src="/assets/yuan.js?v=835b52a2"></script>
+<script src="/assets/admin.js"></script>
+</body>
+</html>
