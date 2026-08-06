@@ -5,7 +5,7 @@
    is written to admin_audit.
    ============================================================ */
 import {
-  pgGet, pgCount, pgInsert, pgPatch, json, fail, configured,
+  pg, pgGet, pgCount, pgInsert, pgPatch, json, fail, configured,
   requireRole, clientIp, newRef
 } from '../lib/core.js';
 import { computeLanded, loadRules } from '../lib/costing.js';
@@ -471,6 +471,136 @@ async function quotePreview(request) {
   return json({ ok: true, quantity: qty, unit_cny: unitCny, ...landed });
 }
 
+/* ---------------- INVOICES ---------------- */
+async function issueInvoice(request, body, account) {
+  const orderId = String(body.order_id || '');
+  if (!orderId) return fail('order_id_required');
+
+  const rows = await pgGet(`orders?select=*&id=eq.${orderId}&limit=1`);
+  const o = rows && rows[0];
+  if (!o) return fail('not_found', 404);
+  if (o.status !== 'confirmed') {
+    return fail('not_confirmed', 409,
+      { note: 'An invoice may only be issued after the supplier has confirmed. That order is at: ' + o.status });
+  }
+  const already = await pgGet(`invoices?select=number&order_id=eq.${orderId}&limit=1`);
+  if (already && already[0]) return fail('already_invoiced', 409, { number: already[0].number });
+
+  const items = await pgGet(`order_items?select=title_snapshot,qty,unit_cny,line_pkr&order_id=eq.${orderId}`) || [];
+
+  // gapless sequential number, generated in the database
+  const numRow = await pg('rpc/next_invoice_number', { method: 'POST', body: '{}' }).catch(() => null);
+  const number = (typeof numRow === 'string') ? numRow : (numRow && numRow.number) || null;
+  if (!number) return fail('numbering_failed', 500,
+    { note: 'Refusing to issue an invoice without a sequential number — a sales-tax invoice must be gapless.' });
+
+  const total = body.total_pkr != null ? Number(body.total_pkr) : Number(o.total_pkr);
+  if (!(total > 0)) return fail('bad_total');
+
+  const made = await pgInsert('invoices', [{
+    number, order_id: orderId,
+    due_at: body.due_at || null,
+    total_pkr: total,
+    amount_words_en: body.amount_words_en || null,
+    amount_words_ur: body.amount_words_ur || null,
+    bank_details: body.bank_details || null,
+    lines: items,
+    issued_by: account.id,
+    status: 'issued'
+  }]);
+  await pgPatch(`orders?id=eq.${orderId}`, { status: 'invoiced', updated_at: new Date().toISOString() });
+  await audit(account, 'invoice.issued', {
+    target_table: 'invoices', target_id: number,
+    after: { total_pkr: total, order: o.ref }, ip: clientIp(request)
+  });
+  return json({ ok: true, invoice: made && made[0] });
+}
+
+async function markPaid(request, body, account) {
+  const number = String(body.number || '');
+  if (!number) return fail('number_required');
+  const rows = await pgGet(`invoices?select=id,order_id,total_pkr,status&number=eq.${encodeURIComponent(number)}&limit=1`);
+  const inv = rows && rows[0];
+  if (!inv) return fail('not_found', 404);
+  if (inv.status === 'paid') return fail('already_paid', 409);
+
+  await pgPatch(`invoices?id=eq.${inv.id}`, {
+    status: 'paid', paid_at: new Date().toISOString(),
+    payment_ref: body.payment_ref ? String(body.payment_ref).slice(0, 120) : null
+  });
+  await pgPatch(`orders?id=eq.${inv.order_id}`, { status: 'paid', updated_at: new Date().toISOString() });
+  await audit(account, 'invoice.paid', {
+    target_table: 'invoices', target_id: number,
+    after: { payment_ref: body.payment_ref || null }, ip: clientIp(request)
+  });
+  return json({ ok: true });
+}
+
+/* ---------------- CONSOLIDATION WINDOWS ---------------- */
+async function listConsolidations() {
+  const rows = await pgGet(
+    'consolidations?select=*&order=closes_at.desc&limit=60'
+  ).catch(() => []);
+  const cities = await pgGet('cities?select=slug,name_en,name_ur,active&order=sort.asc').catch(() => []);
+  const out = [];
+  for (const w of rows || []) {
+    let used = 0;
+    try {
+      const os = await pgGet(`orders?select=cbm&consolidation_id=eq.${w.id}&status=in.(invoiced,paid,sourcing,shipped)`);
+      used = (os || []).reduce((s, o) => s + Number(o.cbm || 0), 0);
+    } catch (e) {}
+    out.push({ ...w, used_cbm: Number(used.toFixed(3)),
+      fill_pct: w.capacity_cbm > 0 ? Math.min(Math.round(used / w.capacity_cbm * 100), 100) : 0 });
+  }
+  return json({ ok: true, consolidations: out, cities: cities || [] });
+}
+
+async function saveConsolidation(request, body, account) {
+  const patch = {
+    city_slug: body.city_slug,
+    container_size: body.container_size || '40ft',
+    capacity_cbm: body.capacity_cbm != null ? Number(body.capacity_cbm) : null,
+    min_viable_cbm: body.min_viable_cbm != null ? Number(body.min_viable_cbm) : null,
+    closes_at: body.closes_at,
+    departs_at: body.departs_at || null,
+    eta_at: body.eta_at || null,
+    freight_total_usd: body.freight_total_usd != null ? Number(body.freight_total_usd) : null,
+    fallback: body.fallback || 'roll',
+    visible: body.visible !== false,
+    note_en: body.note_en || null,
+    note_ur: body.note_ur || null
+  };
+  if (!patch.city_slug) return fail('city_required');
+  if (!patch.closes_at) return fail('closes_at_required');
+  if (!(patch.capacity_cbm > 0)) return fail('capacity_required');
+
+  let row;
+  if (body.id) {
+    const upd = await pgPatch(`consolidations?id=eq.${body.id}`, patch);
+    row = upd && upd[0];
+  } else {
+    const made = await pgInsert('consolidations', [{
+      ...patch, ref: newRef('CON'), created_by: account.id
+    }]);
+    row = made && made[0];
+  }
+  await audit(account, body.id ? 'consolidation.updated' : 'consolidation.created', {
+    target_table: 'consolidations', target_id: row && row.id, after: patch, ip: clientIp(request)
+  });
+  return json({ ok: true, consolidation: row });
+}
+
+async function setConsolidationStatus(request, body, account) {
+  const id = String(body.id || '');
+  const status = String(body.status || '');
+  const allowed = ['open','closed','sailing','arrived','cleared','delivered','cancelled'];
+  if (!id || !allowed.includes(status)) return fail('bad_status', 400, { allowed });
+  await pgPatch(`consolidations?id=eq.${id}`, { status });
+  await audit(account, 'consolidation.status', { target_table:'consolidations', target_id:id,
+    after:{ status }, ip: clientIp(request) });
+  return json({ ok: true, status });
+}
+
 /* ---------------- ROUTER ---------------- */
 export default async (request) => {
   if (!configured()) return fail('db_not_configured', 503);
@@ -500,6 +630,7 @@ export default async (request) => {
         case 'scrape-queue':                    return await scrapeQueue(request);
         case 'audit':                           return await auditLog();
         case 'quote-preview':                   return await quotePreview(request);
+        case 'consolidations':                  return await listConsolidations();
         default: return fail('unknown_route', 404);
       }
     }
@@ -512,6 +643,10 @@ export default async (request) => {
       case 'buyers/approve':       return await approveBuyer(request, body, account);
       case 'agent-jobs/create':    return await createJob(request, body, account);
       case 'agent-jobs/approve':   return await approveJob(request, body, account);
+      case 'invoices/issue':       return await issueInvoice(request, body, account);
+      case 'invoices/paid':        return await markPaid(request, body, account);
+      case 'consolidations/save':  return await saveConsolidation(request, body, account);
+      case 'consolidations/status':return await setConsolidationStatus(request, body, account);
       default: return fail('unknown_route', 404);
     }
   } catch (e) {
