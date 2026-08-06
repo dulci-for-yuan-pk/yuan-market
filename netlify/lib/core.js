@@ -173,7 +173,12 @@ export function publicListing(l, role) {
     listed_currency:l.listed_currency,
     listed_price_min:l.listed_price_min,
     listed_price_max:l.listed_price_max,
-    price_verified_at:l.price_verified_at, market_price_pkr:l.market_price_pkr,
+    price_verified_at:l.price_verified_at,
+    /* The Pakistani market price and WHERE it came from. A comparison without
+       its source is just a marketing claim, so the two travel together. */
+    market_price_pkr:l.market_price_pkr,
+    market_price_source:l.market_price_source || null,
+    market_price_checked_at:l.market_price_checked_at || null,
     spin_frames:l.spin_frames, model_url:l.model_url, capture_status:l.capture_status,
     // Market district is shown publicly — it proves a real physical stall backs
     // the listing. The exact booth number and phone stay admin-only so a buyer
