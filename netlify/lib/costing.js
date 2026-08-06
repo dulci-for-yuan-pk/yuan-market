@@ -80,9 +80,14 @@ const DUTY_KEY_BY_CATEGORY = {
  *   listing_id       enables a per-listing override
  *   fx               { rate: CNY->PKR }
  *   cbm, weight_kg   optional, for freight when a rate exists
+ *   container_cbm    volume of the container the per-consignment charges relate
+ *                    to; defaults to 58 CBM (a 40ft high-cube) so a small order
+ *                    is not charged an entire clearing fee
  *   commission_pct   defaults to the agreed 20
  */
 export async function computeLanded(o) {
+  // a 40ft high-cube holds roughly 58 CBM of packed cartons
+  o = { container_cbm: 58, ...o };
   const rules = await loadRules();
   const overrides = await loadOverrides();
   const r = (key) => resolve(rules, overrides, key, o.category_slug, o.listing_id);
@@ -144,17 +149,44 @@ export async function computeLanded(o) {
   push('ait', ait, ait.value != null ? gstBase * ait.value / 100 : null,
        { assessed_on_pkr: Math.round(gstBase) });
 
-  /* 7. port + clearing + inland — each only if sourced */
+  /* 7. port + clearing — per consignment.
+     These are real costs the business pays, so they must reach the total.
+     Attributing a whole-consignment charge to one order needs an assumption,
+     so it is made EXPLICIT: apportion by this order's share of a container.
+     A tiny order therefore carries a tiny slice, not the whole fee. */
+  const shareOfContainer = (o.cbm > 0 && o.container_cbm > 0)
+    ? Math.min(Number(o.cbm) / Number(o.container_cbm), 1)
+    : null;
+
   for (const key of ['port_charges_pkr_per_consignment', 'clearing_agent_pkr_per_consignment']) {
     const res = r(key);
-    // a per-consignment charge cannot be attributed to one item without a
-    // consignment context, so it is reported but not folded into a unit price
-    push(key, res, null, { per: 'consignment', value_pkr: res.value });
+    const amount = (res.value != null && shareOfContainer != null)
+      ? res.value * shareOfContainer : null;
+    push(key, res, amount, {
+      per: 'consignment',
+      full_value_pkr: res.value,
+      your_share_pct: shareOfContainer == null ? null : Number((shareOfContainer * 100).toFixed(2)),
+      note: shareOfContainer == null
+        ? 'Apportioned once we know the carton volume of your order.'
+        : `Your ${(shareOfContainer * 100).toFixed(2)}% of a ${o.container_cbm} CBM container.`
+    });
   }
   const inland = r('inland_karachi_to_multan_pkr_per_cbm');
   push('inland', inland,
        (inland.value != null && o.cbm > 0) ? inland.value * Number(o.cbm) : null,
        { needs: o.cbm ? null : 'carton CBM not known for this listing' });
+
+  /* 8. bank / remittance cost — paying a Chinese supplier is not free */
+  const bank = r('bank_lc_pct');
+  push('bank', bank, bank.value != null ? goodsPkr * bank.value / 100 : null,
+       { assessed_on_pkr: Math.round(goodsPkr) });
+
+  /* 9. exchange-rate buffer — protects against the rate moving between the
+     quote and the day the supplier is actually paid. Disclosed, never hidden. */
+  const buffer = r('fx_buffer_pct');
+  push('fx_buffer', buffer, buffer.value != null ? goodsPkr * buffer.value / 100 : null,
+       { assessed_on_pkr: Math.round(goodsPkr),
+         note: 'Covers the rate moving between this quote and the day we pay the supplier.' });
 
   /* ---- totals ---- */
   const counted = lines.filter(l => l.amount_pkr != null && l.id !== 'goods');
