@@ -89,6 +89,18 @@ export async function computeLanded(o) {
   // a 40ft high-cube holds roughly 58 CBM of packed cartons
   o = { container_cbm: 58, ...o };
   const rules = await loadRules();
+  const overridesEarly = await loadOverrides();
+
+  /* If the listing has no carton data, fall back to a per-piece volume the
+     Director has set for the category. That is HIS trade judgement, recorded
+     as a confirmed override — not a number invented here. Absent that, freight
+     simply stays uncomputed and the sheet says so. */
+  if (!(o.cbm > 0) && o.units > 0 && o.category_slug) {
+    const perPiece = overridesEarly.find(x =>
+      x.scope === 'category' && x.ref_slug === o.category_slug && x.key === 'cbm_per_piece');
+    const v = perPiece && (perPiece.value != null ? perPiece.value : perPiece.value_estimated);
+    if (v > 0) { o.cbm = Number(v) * Number(o.units); o.cbm_from_category_default = true; }
+  }
   const overrides = await loadOverrides();
   const r = (key) => resolve(rules, overrides, key, o.category_slug, o.listing_id);
 
@@ -198,6 +210,12 @@ export async function computeLanded(o) {
 
   const missing = lines.filter(l => l.basis === 'unsourced').map(l => l.label);
   const estimated = lines.filter(l => l.basis === 'estimated').map(l => l.label);
+  /* A rate can be confirmed and still not applicable — freight needs a carton
+     volume. Calling that "unsourced" would blame the rate; calling it complete
+     would hide a real cost. It gets its own state. */
+  const pendingInput = lines
+    .filter(l => l.value != null && l.amount_pkr == null && l.id !== 'goods' && l.applies !== false)
+    .map(l => l.label);
 
   return {
     ok: true,
@@ -212,12 +230,16 @@ export async function computeLanded(o) {
       confirmed: lines.filter(l => l.basis === 'confirmed').length,
       estimated: estimated.length,
       unsourced: missing.length,
-      is_final: missing.length === 0 && estimated.length === 0,
+      pending_input: pendingInput.length,
+      is_final: missing.length === 0 && estimated.length === 0 && pendingInput.length === 0,
       estimated_lines: estimated,
       unsourced_lines: missing,
-      caveat: missing.length
-        ? 'This total excludes lines with no published rate yet, so the real landed cost will be higher.'
-        : (estimated.length ? 'This total uses published estimates, not quotes obtained for your shipment.' : null)
+      pending_input_lines: pendingInput,
+      caveat: pendingInput.length
+        ? 'Shipping is not in this total yet: the carton size of these goods is not recorded, so freight and clearing cannot be worked out. The real landed cost will be higher.'
+        : (missing.length
+            ? 'This total excludes lines with no published rate yet, so the real landed cost will be higher.'
+            : (estimated.length ? 'This total uses published estimates, not quotes obtained for your shipment.' : null))
     }
   };
 }

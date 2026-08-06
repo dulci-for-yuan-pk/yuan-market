@@ -129,9 +129,10 @@ async function cartView(request, account) {
   for (const ln of lines) {
     if (ln.line_cny == null) continue;
     const k = ln.category_slug || 'unknown';
-    perCategory[k] = perCategory[k] || { goods_cny: 0, cbm: 0 };
+    perCategory[k] = perCategory[k] || { goods_cny: 0, cbm: 0, units: 0 };
     perCategory[k].goods_cny += ln.line_cny;
     perCategory[k].cbm += ln.cbm || 0;
+    perCategory[k].units += ln.qty || 0;
   }
 
   const groups = [];
@@ -139,6 +140,7 @@ async function cartView(request, account) {
   for (const [slug, g] of Object.entries(perCategory)) {
     const landed = await computeLanded({
       goods_cny: g.goods_cny, category_slug: slug === 'unknown' ? null : slug,
+      units: g.units || 0,
       fx: rates, cbm: g.cbm || null
     });
     if (!landed.ok) continue;
@@ -275,9 +277,10 @@ async function checkout(request, body, account) {
     const cbm = (cartons && l.carton_cbm > 0) ? cartons * Number(l.carton_cbm) : 0;
     goodsCny += unit * it.qty; totalCbm += cbm;
     const slug = catById[l.category_id] || 'unknown';
-    perCategory[slug] = perCategory[slug] || { goods_cny: 0, cbm: 0 };
+    perCategory[slug] = perCategory[slug] || { goods_cny: 0, cbm: 0, units: 0 };
     perCategory[slug].goods_cny += unit * it.qty;
     perCategory[slug].cbm += cbm;
+    perCategory[slug].units += it.qty;
     orderItems.push({
       listing_id: l.id, title_snapshot: l.title_en, tier_snapshot: 'indicative',
       qty: it.qty, unit_cny: Number(unit.toFixed(4)),
@@ -290,6 +293,7 @@ async function checkout(request, body, account) {
   for (const [slug, g] of Object.entries(perCategory)) {
     const landed = await computeLanded({
       goods_cny: g.goods_cny, category_slug: slug === 'unknown' ? null : slug,
+      units: g.units || 0,
       fx: rates, cbm: g.cbm || null
     });
     if (!landed.ok) continue;

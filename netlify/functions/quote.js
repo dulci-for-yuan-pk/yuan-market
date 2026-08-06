@@ -56,6 +56,7 @@ export default async (request) => {
       goods_cny: unitCny * quantity,
       category_slug: categorySlug,
       listing_id: l.id,
+      units: quantity,
       fx, cbm
     });
     if (!landed.ok) return fail(landed.reason, 503, { message: landed.message });
