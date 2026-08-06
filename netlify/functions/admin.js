@@ -5,7 +5,7 @@
    is written to admin_audit.
    ============================================================ */
 import {
-  pg, pgGet, pgCount, pgInsert, pgPatch, json, fail, configured,
+  pg, pgGet, pgCount, pgInsert, pgPatch, pgDelete, json, fail, configured,
   requireRole, clientIp, newRef
 } from '../lib/core.js';
 import { computeLanded, loadRules } from '../lib/costing.js';
@@ -211,8 +211,9 @@ async function bulkListings(request, body, account) {
   if (action === 'delete') {
     const rows = await pgGet(`listings?select=id&${where}&limit=500`);
     affected = (rows || []).length;
-    await pgGet(`listings?${where}`, { method: 'DELETE' }).catch(async () => {
-      // PostgREST delete via pg helper
+    // A hard delete loses the audit link, so archiving is the safer default
+    // when a real delete is refused (e.g. an order references the listing).
+    await pgDelete(`listings?${where}`).catch(async () => {
       await pgPatch(`listings?${where}`, { status: 'archived' });
     });
   } else {

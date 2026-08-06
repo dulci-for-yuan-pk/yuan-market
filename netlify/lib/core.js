@@ -37,6 +37,9 @@ export async function pg(path, init = {}) {
   return text ? JSON.parse(text) : null;
 }
 export const pgGet    = p => pg(p);
+/* A real DELETE. pgGet deliberately takes only a path, so passing
+   { method:'DELETE' } to it was silently a no-op — use this instead. */
+export const pgDelete = p => pg(p, { method:'DELETE' });
 
 /* Exact row count without transferring the rows. PostgREST reports it in
    Content-Range when asked, so a "total" costs one cheap request instead of

@@ -5,7 +5,7 @@
    only asked for after the supplier confirms and an invoice exists.
    ============================================================ */
 import {
-  pgGet, pgCount, pgInsert, pgPatch, json, fail, configured,
+  pgGet, pgCount, pgInsert, pgPatch, pgDelete, json, fail, configured,
   currentAccount, requireRole, clientIp, newRef
 } from '../lib/core.js';
 import { computeLanded } from '../lib/costing.js';
@@ -209,8 +209,7 @@ async function cartUpdate(request, body, account) {
   if (!own || !own[0]) return fail('not_found', 404);
 
   if (!qty || qty < 1) {
-    await pgGet(`cart_items?id=eq.${id}&cart_id=eq.${cart.id}`, { method: 'DELETE' })
-      .catch(async () => { await pgPatch(`cart_items?id=eq.${id}`, { qty: 1 }); });
+    await pgDelete(`cart_items?id=eq.${id}&cart_id=eq.${cart.id}`);
     return json({ ok: true, removed: true });
   }
   await pgPatch(`cart_items?id=eq.${id}&cart_id=eq.${cart.id}`, { qty });
@@ -321,11 +320,13 @@ async function checkout(request, body, account) {
   if (!order) return fail('order_failed', 500);
 
   await pgInsert('order_items', orderItems.map(i => ({ ...i, order_id: order.id })));
-  // clear the basket only after the order exists
-  await pgGet(`cart_items?cart_id=eq.${cart.id}`, { method: 'DELETE' }).catch(() => null);
+  // clear the basket only after the order exists, and verify it actually emptied
+  await pgDelete(`cart_items?cart_id=eq.${cart.id}`).catch(() => null);
+  const leftover = await pgCount(`cart_items?cart_id=eq.${cart.id}`).catch(() => null);
 
-  return json({ ok: true, order: { ref: order.ref, id: order.id, status: order.status,
-    total_pkr: order.total_pkr, completeness: order.completeness } });
+  return json({ ok: true, cart_cleared: leftover === 0,
+    order: { ref: order.ref, id: order.id, status: order.status,
+             total_pkr: order.total_pkr, completeness: order.completeness } });
 }
 
 /* ---------------- MY ORDERS ---------------- */
