@@ -135,13 +135,21 @@ export const newRef = prefix =>
 export function publicListing(l, role) {
   const out = {
     slug:l.slug, code:l.code, title_en:l.title_en, title_ur:l.title_ur, title_zh:l.title_zh,
-    unit:l.unit, moq:l.moq, cny_unit_price:l.cny_unit_price, hero_url:l.hero_url,
+    unit:l.unit, moq:l.moq, hero_url:l.hero_url,
     tier:l.tier, status:l.status, category_id:l.category_id,
-    listed_price_min_cny:l.listed_price_min_cny, listed_price_max_cny:l.listed_price_max_cny,
-    source_platform:l.source_platform, source_captured_at:l.source_captured_at,
+    // the negotiated yuan price (verified listings only)
+    cny_unit_price:l.cny_unit_price,
+    // the supplier's published price and the currency it was published in,
+    // so the client can normalise it to yuan at the live rate
+    listed_currency:l.listed_currency,
+    listed_price_min:l.listed_price_min,
+    listed_price_max:l.listed_price_max,
     price_verified_at:l.price_verified_at, market_price_pkr:l.market_price_pkr,
     spin_frames:l.spin_frames, model_url:l.model_url, capture_status:l.capture_status
   };
+  // NOTE: source_platform, source_url and source_captured_at are deliberately
+  // NOT in the public shape. Naming the marketplace we sourced from, or the
+  // date we scraped it, reads as second-hand data to a buyer.
   // Source URL and capture provenance are ADMIN-ONLY. Buyers see a clear
   // "price confirmed after you order" promise instead of a scrape trail.
   if (role === 'admin') {
@@ -152,6 +160,8 @@ export function publicListing(l, role) {
     out.hs_code = l.hs_code;
     out.duty_pct_override = l.duty_pct_override;
     out.source_url = l.source_url;
+    out.source_platform = l.source_platform;
+    out.source_captured_at = l.source_captured_at;
   }
   return out;
 }
