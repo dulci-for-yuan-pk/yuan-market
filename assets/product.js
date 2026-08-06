@@ -40,13 +40,17 @@
        rate. A supplier price published in USD/EUR/GBP is normalised to yuan
        through that same rate; the exact figure is confirmed with the supplier
        once an order is placed, and nothing is charged before then. */
-    const cny = window.YuanPriceOf ? window.YuanPriceOf(L) : null;
-    const pkr = (cny != null && Y.fx && Y.fx.rate) ? cny * Y.fx.rate : null;
+    const r = window.YuanPriceOf ? window.YuanPriceOf(L) : null;
+    const fx = Y.fx;
+    const ranged = r && r.max > r.min;
+    const cnyTxt = !r ? '—' : (ranged ? `¥ ${Y.n2(r.min)}–${Y.n2(r.max)}` : `¥ ${Y.n2(r.min)}`);
+    const pkrTxt = (!r || !fx || !fx.rate) ? '—'
+      : (ranged ? `${Y.n0(r.min * fx.rate)}–${Y.n0(r.max * fx.rate)} PKR` : Y.pkr(r.min * fx.rate));
     const priceRows = `
       <div class="lrow"><span class="l"><i></i><span>${esc(verified ? Y.t('p.china') : Y.t('tier.listedprice'))}</span></span>
-        <span class="a num">${cny == null ? '—' : '¥ ' + Y.n2(cny)}</span></div>
+        <span class="a num">${cnyTxt}</span></div>
       <div class="lrow"><span class="l"><i></i><span data-t="led.conv"></span></span>
-        <span class="a num">${pkr == null ? '—' : Y.pkr(pkr)}</span></div>
+        <span class="a num">${pkrTxt}</span></div>
       ${verified ? '' : `<div class="lrow"><span class="l"><i></i><span>${esc(Y.t('tier.approx'))}</span></span>
         <span class="a"><span class="confirm-note">${esc(Y.t('tier.confirm'))}</span></span></div>`}`;
 

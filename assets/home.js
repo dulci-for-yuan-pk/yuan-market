@@ -36,28 +36,43 @@
      as confirmed with the supplier once an order is placed.
      If the rate feed is down we show nothing rather than a guess. */
   function yuanOf(l){
-    if (l.tier === 'verified' && l.cny_unit_price != null) return Number(l.cny_unit_price);
+    // returns { min, max } in YUAN, or null. Supplier listings are usually
+    // published as a RANGE (a 0.01-0.04 spread is 4x) so showing only the
+    // floor would understate what a buyer actually pays.
+    if (l.tier === 'verified' && l.cny_unit_price != null){
+      const v = Number(l.cny_unit_price);
+      return { min: v, max: v };
+    }
     const fx = Y.fx;
     if (!fx || !fx.to_cny) return null;
     const k = fx.to_cny[l.listed_currency];
     if (!(k > 0)) return null;
-    const base = (l.listed_price_min != null) ? Number(l.listed_price_min) : null;
-    return base == null ? null : base * k;
+    const lo = l.listed_price_min != null ? Number(l.listed_price_min) * k : null;
+    const hi = l.listed_price_max != null ? Number(l.listed_price_max) * k : lo;
+    if (lo == null) return null;
+    return { min: lo, max: (hi != null && hi > lo) ? hi : lo };
   }
   window.YuanPriceOf = yuanOf;
 
   function priceBlock(l){
     const verified = l.tier === 'verified';
-    const cny = yuanOf(l);
+    const r = yuanOf(l);
     const fx = Y.fx;
-    const pkr = (cny != null && fx && fx.rate) ? cny * fx.rate : null;
-
     const label = verified ? Y.t('p.china') : Y.t('tier.listedprice');
-    const main = (cny == null)
-      ? `<div class="p-val">—</div>`
-      : `<div class="p-val num">${SYM.CNY} ${Y.n2(cny)}<small>/ ${esc(unitLabel(l.unit))}</small></div>
-         <div class="num" style="font-size:13.5px;font-weight:650;color:var(--fg-2);margin-top:3px">
-           ${pkr == null ? '—' : Y.pkr(pkr)}</div>`;
+
+    let main;
+    if (!r){
+      main = `<div class="p-val">—</div>`;
+    } else {
+      const ranged = r.max > r.min;
+      const cnyTxt = ranged ? `${Y.n2(r.min)}–${Y.n2(r.max)}` : Y.n2(r.min);
+      const pkrTxt = (fx && fx.rate)
+        ? (ranged ? `${Y.n0(r.min * fx.rate)}–${Y.n0(r.max * fx.rate)} PKR`
+                  : Y.pkr(r.min * fx.rate))
+        : '—';
+      main = `<div class="p-val num">${SYM.CNY} ${cnyTxt}<small>/ ${esc(unitLabel(l.unit))}</small></div>
+              <div class="num" style="font-size:13px;font-weight:650;color:var(--fg-2);margin-top:3px">${pkrTxt}</div>`;
+    }
 
     const note = verified
       ? `<div class="await" style="margin-top:7px">${esc(Y.t('p.costspending'))}</div>`
