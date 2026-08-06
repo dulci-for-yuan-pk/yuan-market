@@ -23,6 +23,16 @@ const money2 = v => (v == null || isNaN(v)) ? '—'
 const prettyCity = v => !v ? null : String(v).replace(/-/g, ' ')
   .replace(/\b[a-z]/g, c => c.toUpperCase());
 
+/* Cut on a word boundary. A label chopped mid-word ("goods whose b") looks
+   like a broken system, and this document has to look trustworthy. */
+function clip(v, n) {
+  const s = String(v == null ? '' : v).replace(/\s+/g, ' ').trim();
+  if (s.length <= n) return s;
+  const cut = s.slice(0, n);
+  const sp = cut.lastIndexOf(' ');
+  return (sp > n * 0.55 ? cut.slice(0, sp) : cut).replace(/[\s,;:(\-]+$/, '') + '...';
+}
+
 const day = iso => {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -90,7 +100,7 @@ export function invoicePdf({ invoice, order, items, company, breakdown }) {
 
   (items || []).forEach(it => {
     if (y > d.H - 200) { d.newPage(); y = M; }
-    const t = String(it.title_snapshot || '').slice(0, 58);
+    const t = clip(it.title_snapshot, 52);
     d.text(t, M + 6, y + 2, { size: 9, color: INK });
     d.text(money(it.qty), cQty, y + 2, { size: 9, align: 'right', color: INK });
     d.text(it.unit_cny != null ? money2(it.unit_cny) : '—', cUnit, y + 2, { size: 9, align: 'right', color: INK });
@@ -117,7 +127,7 @@ export function invoicePdf({ invoice, order, items, company, breakdown }) {
   const printLines = ls => {
     ls.forEach(l => {
       if (y > d.H - 150) { d.newPage(); y = M; }
-      d.text(String(l.label || l.id || '').slice(0, 58), M + 6, y, { size: 9, color: INK });
+      d.text(clip(l.label || l.id, 46), M + 6, y, { size: 9, color: INK });
       /* Say out loud which figures are confirmed and which are still an
          estimate. A buyer who is told the difference trusts the number. */
       if (l.basis && l.basis !== 'confirmed') {
@@ -125,7 +135,7 @@ export function invoicePdf({ invoice, order, items, company, breakdown }) {
                l.basis === 'pending_input' ? 'not yet in this total' : 'not yet sourced',
           M + 262, y, { size: 7.5, color: [0.62, 0.42, 0.10] });
       }
-      if (l.value != null && l.unit === 'percent') {
+      if (l.value != null && (l.unit === '%' || l.unit === 'percent')) {
         d.text(money2(l.value) + '%', M + 360, y, { size: 8, align: 'right', color: GREY });
       }
       d.text(l.amount_pkr != null ? money(l.amount_pkr) : '—',
