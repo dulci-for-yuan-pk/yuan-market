@@ -19,6 +19,26 @@ const WEBHOOK_URL    = process.env.AGENT_WEBHOOK_URL || '';
 const WEBHOOK_SECRET = process.env.AGENT_WEBHOOK_SECRET || '';
 const SITE = process.env.URL || 'https://yuan.pk';
 
+/* How DULCi's own endpoint wants to be authenticated. Set AGENT_WEBHOOK_AUTH
+   in Netlify once we know which form it accepts; 'bearer' is the usual one. */
+const AUTH_STYLE = (process.env.AGENT_WEBHOOK_AUTH || 'bearer').toLowerCase();
+
+/* Auth for the OUTBOUND call to DULCi. Separate from x-yuan-signature, which
+   proves to us that a callback really came from DULCi. */
+function authHeaders(style) {
+  const s = WEBHOOK_SECRET;
+  switch (style) {
+    case 'bearer':        return { authorization: 'Bearer ' + s };
+    case 'token':         return { authorization: 'Token ' + s };
+    case 'x-webhook-secret': return { 'x-webhook-secret': s };
+    case 'x-api-key':     return { 'x-api-key': s };
+    case 'x-agent-secret':return { 'x-agent-secret': s };
+    case 'x-hyperagent-secret': return { 'x-hyperagent-secret': s };
+    case 'none':          return {};
+    default:              return { authorization: 'Bearer ' + s };
+  }
+}
+
 const sign = body => createHmac('sha256', WEBHOOK_SECRET).update(body).digest('hex');
 function signatureOk(given, body) {
   if (!WEBHOOK_SECRET || !given) return false;
@@ -91,7 +111,8 @@ async function dispatch(request, account) {
         method: 'POST',
         headers: {
           'content-type': 'application/json',
-          'x-yuan-signature': 'sha256=' + sign(payload)
+          'x-yuan-signature': 'sha256=' + sign(payload),
+          ...authHeaders(AUTH_STYLE)
         },
         body: payload
       });
@@ -185,6 +206,49 @@ export default async (request) => {
     // read the body as text, because the signature covers the exact bytes sent
     const raw = await request.text();
     return await callback(request, raw);
+  }
+
+  /* Which authentication form does DULCi's endpoint accept? Try each with a
+     harmless ping and report the status codes only — never a secret, never
+     the webhook address. */
+  if (path === 'probe') {
+    const g = await requireRole(request, ['admin']);
+    if (g.error) return g.error;
+    if (!WEBHOOK_URL || !WEBHOOK_SECRET) return fail('webhook_not_configured', 503);
+
+    const styles = ['bearer', 'token', 'x-webhook-secret', 'x-api-key',
+                    'x-agent-secret', 'x-hyperagent-secret', 'none'];
+    const body = JSON.stringify({
+      ping: true,
+      note: 'Connection test from Yuan Market. No action needed — please reply that you received it.'
+    });
+    const tried = [];
+    for (const style of styles) {
+      try {
+        const r = await fetch(WEBHOOK_URL, {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', ...authHeaders(style) },
+          body
+        });
+        let snippet = '';
+        try { snippet = (await r.text()).slice(0, 160); } catch (e) {}
+        tried.push({ style, status: r.status, accepted: r.ok, reply: snippet });
+        if (r.ok) break;           // stop as soon as one works
+      } catch (e) {
+        tried.push({ style, status: null, accepted: false, error: String(e && e.message || e).slice(0, 120) });
+      }
+    }
+    const winner = tried.find(t => t.accepted);
+    return json({
+      ok: true, tried,
+      works_with: winner ? winner.style : null,
+      current_setting: AUTH_STYLE,
+      note: winner
+        ? (winner.style === AUTH_STYLE
+            ? 'Already set correctly — dispatch will work.'
+            : `Set AGENT_WEBHOOK_AUTH = ${winner.style} in Netlify.`)
+        : 'None of the usual forms was accepted. The secret in Netlify may not match the one DULCi expects.'
+    });
   }
 
   if (path === 'dispatch') {
