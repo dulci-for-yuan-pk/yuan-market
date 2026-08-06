@@ -139,6 +139,12 @@
         <span class="num ltr">+92 300 630 7380</span></a>`;
   }
 
+  /* A per-consignment charge apportioned by volume can genuinely come to two
+     rupees. Rounding that to "0" beside "6,000 PKR" reads like a broken page,
+     so small figures keep a decimal. */
+  const money = v => v == null ? '—'
+    : (Math.abs(v) < 10 && v !== 0 ? Y.n2(v) : Y.n0(v));
+
   const BASIS_LABEL = b => b === 'confirmed' ? Y.t('q.confirmed')
     : b === 'estimated' ? Y.t('q.estimated')
     : b === 'pending_input' ? Y.t('led.pending') : Y.t('led.pending');
@@ -182,12 +188,20 @@
       const rate = (l.value != null && l.unit)
         ? `<span class="dim num ltr" style="font-size:11.5px;margin-inline-end:8px">${
             l.unit === '%' ? Y.n2(l.value) + '%' : Y.n2(l.value) + ' ' + esc(l.unit)}</span>` : '';
+      /* A rate that exists but does not apply to THIS product is stated as such.
+         Showing "4%" beside a dash makes a buyer think something is broken. */
+      const na = l.amount_pkr == null && l.applies === false;
+      if (na) {
+        return `<div class="lrow" style="opacity:.55">
+          <span class="l"><i style="opacity:.4"></i><span>${esc(lineLabel(l))}</span></span>
+          <span class="a"><span class="dim" style="font-size:11.5px">${
+            esc(l.note || Y.t('q.notapply'))}</span></span></div>`;
+      }
       return `<div class="lrow${est ? ' pend' : ''}">
         <span class="l"><i></i><span>${esc(lineLabel(l))}</span>
           ${est ? `<span class="confirm-note" style="margin-inline-start:7px">${esc(BASIS_LABEL(l.basis))}</span>` : ''}
         </span>
-        <span class="a">${rate}<b class="num ltr">${
-          l.amount_pkr == null ? '—' : Y.n0(l.amount_pkr)}</b></span>
+        <span class="a">${rate}<b class="num ltr">${money(l.amount_pkr)}</b></span>
       </div>`;
     }).join('');
 
@@ -195,7 +209,7 @@
     const feeRow = `<div class="lrow fee">
       <span class="l"><i style="opacity:1"></i><span>${esc(Y.t('led.fee'))}</span></span>
       <span class="a"><span class="dim num ltr" style="font-size:11.5px;margin-inline-end:8px">${
-        Y.n0(fee.pct || 20)}%</span><b class="num ltr">${Y.n0(fee.amount_pkr)}</b></span></div>`;
+        Y.n0(fee.pct || 20)}%</span><b class="num ltr">${money(fee.amount_pkr)}</b></span></div>`;
 
     /* The comparison he asked for: our landed price against what the same thing
        sells for in Pakistan today. Only shown when we actually have a figure. */
@@ -229,6 +243,9 @@
       <div class="lrow"><span class="l"><i style="opacity:0"></i><span class="dim">${
         esc(Y.t('q.perunit'))} ${esc(unit)}</span></span>
         <span class="a"><b class="num ltr">${Y.n0(d.per_unit_pkr)} PKR</b></span></div>
+
+      ${(d.lines || []).some(l => /consignment|port_charges/.test(l.id)) ? `
+        <p class="dim" style="font-size:11.5px;line-height:1.7;margin-top:10px">${esc(Y.t('q.sharednote'))}</p>` : ''}
 
       <div class="ledger-f" style="margin-top:12px">
         ${c.estimated || c.pending_input
