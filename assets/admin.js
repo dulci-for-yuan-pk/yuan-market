@@ -94,6 +94,7 @@
     { id:'sellers',  label:'Suppliers' },
     { g:'System' },
     { id:'dulci',    label:'DULCi jobs',     badgeKey:'agent_jobs_open' },
+    { id:'company',  label:'Company & bank', badgeKey:'company_blank', alert:true },
     { id:'admins',   label:'Administrators' },
     { id:'audit',    label:'Audit trail' }
   ];
@@ -527,20 +528,36 @@
   /* ================= ORDERS ================= */
   VIEWS.orders = async (main) => {
     const d = await Y.api('/api/admin/orders');
+
     main.innerHTML = head('Orders',
       'An order cannot skip a step — the system refuses illegal jumps, because that is how money goes missing.') +
+      (!d.bank_ready ? `<div class="nextup"><div class="ico">!</div><div class="txt">
+        <div class="en">Your bank account is not saved yet, so any invoice you issue goes out without payment
+        details and tells the buyer to telephone you first. Enter it once and every invoice carries it.</div></div>
+        <a class="btn btn-gold btn-sm" href="#company">Enter bank details</a></div>` : '') +
       `<div class="panel"><div class="tbl-wrap">
         ${!d.orders.length ? '<div class="empty-sm">No orders yet.</div>' :
         `<table class="adm"><thead><tr><th>Ref</th><th>Buyer</th><th>City</th>
-          <th style="text-align:right">Total PKR</th><th>Status</th><th>Next step</th></tr></thead><tbody>
+          <th style="text-align:right">Total PKR</th><th>Status</th><th>Invoice</th><th>Next step</th></tr></thead><tbody>
         ${d.orders.map(o => `<tr>
           <td class="mono" style="font-size:11.5px">${esc(o.ref)}</td>
           <td>${esc(o.buyer_name||'—')}<div class="dim num" style="font-size:11px">${esc(o.buyer_phone||'')}</div></td>
           <td>${esc(o.buyer_city||'—')}</td>
           <td class="num" style="text-align:right">${n0(o.total_pkr)}</td>
           <td><span class="pill-sm st-placed">${esc(o.status)}</span></td>
+          <td>${o.invoice ? `
+              <a class="btn btn-glass btn-sm" href="${esc(o.invoice.pdf_url)}" target="_blank" rel="noopener noreferrer">PDF</a>
+              <div class="mono dim" style="font-size:10.5px;margin-top:4px">${esc(o.invoice.number)}</div>
+              ${o.invoice.status === 'paid'
+                ? `<span class="pill-sm st-live">paid</span>`
+                : `<button class="btn btn-ghost btn-sm" data-paid="${esc(o.invoice.number)}"
+                     data-total="${esc(o.invoice.total_pkr)}">Mark paid</button>`}`
+            : (o.status === 'confirmed'
+                ? `<button class="btn btn-gold btn-sm" data-invoice="${esc(o.id)}"
+                     data-ref="${esc(o.ref)}" data-total="${esc(o.total_pkr)}">Issue invoice</button>`
+                : '<span class="dim">—</span>')}</td>
           <td><div style="display:flex;gap:6px;flex-wrap:wrap">
-            ${(d.flow[o.status]||[]).map(s =>
+            ${(d.flow[o.status]||[]).filter(s => !(s === 'invoiced' && !o.invoice)).map(s =>
               `<button class="btn btn-glass btn-sm" data-adv="${esc(s)}" data-id="${esc(o.id)}">${esc(s)}</button>`).join('')
               || '<span class="dim">—</span>'}
           </div></td></tr>`).join('')}</tbody></table>`}
@@ -557,6 +574,115 @@
         b.disabled = false;
       }
     }));
+
+    /* Issuing an invoice moves money, so it is confirmed with the figure
+       spelled out — never a bare "are you sure". */
+    $$('#admMain [data-invoice]').forEach(b => b.addEventListener('click', async () => {
+      const total = Number(b.dataset.total);
+      if (!confirm(`Issue an invoice to ${b.dataset.ref} for PKR ${n0(total)}?\n\n` +
+        `The order moves to "invoiced" and the buyer can download the PDF from their account.`)) return;
+      b.disabled = true;
+      try {
+        const r = await Y.api('/api/admin/invoices/issue', { method:'POST', body:{ order_id: b.dataset.invoice } });
+        if (r.warning) alert(r.warning);
+        if (r.pdf_url) window.open(r.pdf_url, '_blank', 'noopener');
+        route();
+      } catch (e) {
+        alert('Refused: ' + ((e.data && (e.data.note || e.data.error)) || e.message));
+        b.disabled = false;
+      }
+    }));
+
+    $$('#admMain [data-paid]').forEach(b => b.addEventListener('click', async () => {
+      const ref = prompt(`Payment received for invoice ${b.dataset.paid} — PKR ${n0(Number(b.dataset.total))}.\n\n` +
+        `Enter the bank reference or transaction ID (leave blank if you do not have one):`);
+      if (ref === null) return;
+      b.disabled = true;
+      try {
+        await Y.api('/api/admin/invoices/paid', { method:'POST',
+          body:{ number: b.dataset.paid, payment_ref: ref || null } });
+        route();
+      } catch (e) {
+        alert('Refused: ' + ((e.data && (e.data.note || e.data.error)) || e.message));
+        b.disabled = false;
+      }
+    }));
+  };
+
+  /* ================= COMPANY & BANK ================= */
+  VIEWS.company = async (main) => {
+    const d = await Y.api('/api/admin/company');
+    const c = d.company || {};
+    const f = (key, label, hint, ph) => `<div class="costrow">
+      <div><b>${esc(label)}</b>${hint ? `<div class="dim" style="font-size:11.5px">${esc(hint)}</div>` : ''}</div>
+      <input class="inp" data-co="${key}" value="${esc(c[key] == null ? '' : c[key])}"
+        placeholder="${esc(ph || '')}" autocomplete="off" spellcheck="false"></div>`;
+
+    main.innerHTML = head('Company & bank',
+      'These details are printed on every invoice. They are snapshotted onto each invoice as it is issued, so changing your bank next year never rewrites an invoice already in a buyer\'s hands.') +
+      (!d.bank_ready ? `<div class="nextup"><div class="ico">!</div><div class="txt">
+        <div class="en">${esc(d.note || '')}</div>
+        <div class="ur">جب تک بینک اکاؤنٹ یہاں محفوظ نہ ہو، بل پر ادائیگی کی تفصیل نہیں جائے گی اور خریدار کو لکھا جائے گا کہ پہلے آپ سے فون پر تصدیق کریں۔ یہ جان بوجھ کر ہے — غلط اکاؤنٹ نمبر لکھنے سے رقم ضائع ہوتی ہے۔</div>
+      </div></div>` : '') +
+      `<div class="panel">
+        <div class="panel-h"><div><h2>The company</h2>
+          <div class="sub">As it should appear on a tax invoice.</div></div></div>
+        <div class="panel-b flush">
+          ${f('legal_name','Registered name','Exactly as registered.','Yuan.pk (Private) Limited')}
+          ${f('ntn','NTN','National Tax Number.','')}
+          ${f('strn','STRN','Sales tax registration number, if you have one.','')}
+          ${f('address','Address','','')}
+          ${f('city','City','','Multan, Punjab')}
+          ${f('phone','Phone','','+92 300 630 7380')}
+          ${f('email','Email','Where buyers send payment receipts.','javaid.yuan.pk@gmail.com')}
+          ${f('website','Website','','yuan.pk')}
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-h"><div><h2>Where buyers pay</h2>
+          <div class="sub">Type this from your own bank letter or app — not from memory.</div></div></div>
+        <div class="panel-b flush">
+          ${f('bank_title','Account title','The name on the account.','')}
+          ${f('bank_name','Bank','','Meezan Bank')}
+          ${f('bank_branch','Branch','','Gulgasht, Multan')}
+          ${f('bank_iban','IBAN','24 characters, starts PK.','PK__ ____ ____ ____ ____ ____')}
+          ${f('bank_account','Account number','','')}
+          ${f('bank_swift','SWIFT / BIC','Only needed for money coming from abroad.','')}
+          ${f('payment_terms','Payment terms','Printed under the total.','Payable within 7 days of issue.')}
+          ${f('invoice_note','Note on every invoice','Anything you always want to say.','')}
+        </div>
+        <div class="fbar">
+          <span class="dim" id="coState">${d.bank_ready ? 'Bank details are complete.' : 'Bank details incomplete.'}</span>
+          <button class="btn btn-gold btn-sm" id="coSave">Save</button>
+        </div>
+      </div>`;
+
+    $('#coSave').addEventListener('click', async () => {
+      const btn = $('#coSave'); btn.disabled = true;
+      const body = {};
+      $$('#admMain [data-co]').forEach(i => { body[i.dataset.co] = i.value.trim(); });
+
+      /* Catch a mistyped IBAN before it reaches an invoice. Pakistani IBANs
+         are 24 characters: PK, 2 check digits, 4-letter bank code, 16 more. */
+      const iban = (body.bank_iban || '').replace(/\s+/g, '').toUpperCase();
+      if (iban && !/^PK\d{2}[A-Z]{4}[A-Z0-9]{16}$/.test(iban)) {
+        if (!confirm(`That IBAN does not look like a Pakistani IBAN.\n\n` +
+          `Expected: PK, 2 digits, 4 letters, then 16 characters — 24 in total.\n` +
+          `You typed ${iban.length} characters.\n\nSave it anyway?`)) { btn.disabled = false; return; }
+      }
+      if (iban) body.bank_iban = iban;
+
+      try {
+        const r = await Y.api('/api/admin/company/save', { method:'POST', body });
+        $('#coState').textContent = r.bank_ready
+          ? 'Saved. Every invoice from now on carries these details.'
+          : 'Saved, but the bank account is still incomplete.';
+      } catch (e) {
+        alert('Could not save: ' + ((e.data && (e.data.note || e.data.error)) || e.message));
+      }
+      btn.disabled = false;
+    });
   };
 
   /* ================= BUYERS ================= */

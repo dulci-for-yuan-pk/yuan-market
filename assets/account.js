@@ -40,6 +40,42 @@
     render();
   }
 
+
+  /* The pay-now box. Bank details are shown only when Yuan.pk has actually
+     saved them; otherwise the buyer is told to telephone, never handed a
+     plausible-looking account number. */
+  function payBox(inv) {
+    const b = (inv.bank_details && typeof inv.bank_details === 'object') ? inv.bank_details : {};
+    const rows = [
+      [t('Account title','اکاؤنٹ کا نام'), b.bank_title],
+      [t('Bank','بینک'), [b.bank_name, b.bank_branch].filter(Boolean).join(' — ')],
+      ['IBAN', b.bank_iban],
+      [t('Account number','اکاؤنٹ نمبر'), b.bank_account]
+    ].filter(r => r[1]);
+
+    return `<div class="glass" style="border-radius:12px;padding:12px 14px;margin-top:8px;font-size:12.5px;line-height:1.75">
+      <b>${esc(t('Please pay','براہِ کرم ادائیگی کریں'))}
+        <span class="num ltr">${Y.n0(inv.total_pkr)} PKR</span></b>
+      ${rows.length ? `<div style="margin-top:8px">
+          ${rows.map(([k, v]) => `<div style="display:flex;gap:10px;justify-content:space-between">
+            <span class="muted">${esc(k)}</span>
+            <b class="ltr" style="text-align:end">${esc(v)}</b></div>`).join('')}
+        </div>
+        <div class="muted" style="margin-top:8px">${esc(t(
+          'Write invoice number ' + inv.number + ' on the transfer, then send us the receipt on WhatsApp.',
+          'ٹرانسفر پر بل نمبر ' + inv.number + ' لکھیں، پھر رسید واٹس ایپ پر بھیج دیں۔'))}</div>`
+        : `<div class="muted" style="margin-top:6px">${esc(t(
+            'Please telephone us to confirm the account before you transfer anything. Never pay an account number that only came to you in a message.',
+            'رقم بھیجنے سے پہلے فون پر اکاؤنٹ کی تصدیق کر لیں۔ صرف میسج میں آیا ہوا اکاؤنٹ نمبر کبھی ادا نہ کریں۔'))}</div>`}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:11px">
+        <a class="btn btn-gold btn-sm" href="/api/invoice/${encodeURIComponent(inv.number)}.pdf?download=1">
+          ${esc(t('Download invoice PDF','بل پی ڈی ایف ڈاؤن لوڈ کریں'))}</a>
+        <a class="btn btn-wa btn-sm" target="_blank" rel="noopener noreferrer"
+          href="https://wa.me/923006307380?text=${encodeURIComponent('Invoice ' + inv.number)}">WhatsApp</a>
+      </div>
+    </div>`;
+  }
+
   function render() {
     const placed = new URLSearchParams(location.search).get('placed');
     const box = $('#acct');
@@ -142,12 +178,7 @@
                 <div style="font-size:13.5px;font-weight:${current ? '680' : '500'};
                   color:${done ? 'var(--fg)' : 'var(--fg-3)'}">
                   ${esc(Y.lang() === 'ur' ? s[2] : s[1])}</div>
-                ${current && s[0] === 'invoiced' && o.invoice ? `
-                  <div class="glass" style="border-radius:10px;padding:10px 12px;margin-top:7px;font-size:12.5px;line-height:1.7">
-                    <b>${esc(t('Please pay','براہِ کرم ادائیگی کریں'))} <span class="num">${Y.n0(o.invoice.total_pkr)}</span> PKR</b>
-                    ${o.invoice.bank_details ? `<div class="muted" style="margin-top:5px;white-space:pre-line">${esc(o.invoice.bank_details)}</div>`
-                      : `<div class="muted" style="margin-top:5px">${esc(t('We will send you the account details on WhatsApp.','ہم اکاؤنٹ کی تفصیل واٹس ایپ پر بھیج دیں گے۔'))}</div>`}
-                  </div>` : ''}
+                ${current && s[0] === 'invoiced' && o.invoice ? payBox(o.invoice) : ''}
               </div>
             </div>`;
           }).join('')}

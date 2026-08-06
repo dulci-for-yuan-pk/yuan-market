@@ -9,6 +9,7 @@ import {
   requireRole, clientIp, newRef
 } from '../lib/core.js';
 import { computeLanded, loadRules } from '../lib/costing.js';
+import { amountInWordsEn, amountInWordsUr } from '../lib/pdf.js';
 
 async function audit(account, action, extra = {}) {
   try {
@@ -298,8 +299,32 @@ async function orders(request) {
   let f = 'select=id,ref,buyer_name,buyer_phone,buyer_city,status,total_pkr,goods_cny,' +
           'commission_pkr,created_at,updated_at,admin_note';
   if (status) f += `&status=eq.${encodeURIComponent(status)}`;
-  const rows = await pgGet(`orders?${f}&order=created_at.desc&limit=100`);
-  return json({ ok: true, orders: rows || [], flow: ORDER_FLOW });
+  const rows = await pgGet(`orders?${f}&order=created_at.desc&limit=100`) || [];
+
+  /* Attach the invoice, so the console can offer "open the PDF" instead of
+     making the Director hunt for a number. */
+  const ids = rows.map(o => o.id);
+  let byOrder = {};
+  if (ids.length) {
+    const invs = await pgGet('invoices?select=number,order_id,total_pkr,status,issued_at,due_at,paid_at,' +
+      `payment_ref&order_id=in.(${ids.join(',')})`) || [];
+    invs.forEach(i => { byOrder[i.order_id] = i; });
+  }
+  const csRows = await pgGet('company_settings?select=bank_iban,bank_account,bank_title&id=eq.1&limit=1').catch(() => null);
+  const cs = (csRows && csRows[0]) || {};
+
+  return json({
+    ok: true,
+    orders: rows.map(o => ({
+      ...o,
+      invoice: byOrder[o.id] ? {
+        ...byOrder[o.id],
+        pdf_url: '/api/invoice/' + encodeURIComponent(byOrder[o.id].number) + '.pdf'
+      } : null
+    })),
+    flow: ORDER_FLOW,
+    bank_ready: !!((cs.bank_iban || cs.bank_account) && cs.bank_title)
+  });
 }
 
 async function advanceOrder(request, body, account) {
@@ -472,6 +497,54 @@ async function quotePreview(request) {
   return json({ ok: true, quantity: qty, unit_cny: unitCny, ...landed });
 }
 
+/* ---------------- COMPANY / BANK SETTINGS ----------------
+   Nothing here is ever guessed. Blank means blank, and an invoice
+   issued while the bank fields are blank says so on its face. */
+const COMPANY_FIELDS = ['legal_name','ntn','strn','address','city','phone','email','website',
+  'bank_name','bank_branch','bank_title','bank_iban','bank_account','bank_swift',
+  'payment_terms','invoice_note'];
+
+async function getCompany() {
+  const rows = await pgGet('company_settings?select=*&id=eq.1&limit=1');
+  const c = (rows && rows[0]) || { id: 1 };
+  const missing = ['legal_name','address','phone','bank_title','bank_name']
+    .filter(k => !c[k]);
+  const bankReady = !!(c.bank_iban || c.bank_account) && !!c.bank_title;
+  return json({
+    ok: true, company: c, bank_ready: bankReady, missing,
+    note: bankReady ? null
+      : 'Until the bank account is entered here, invoices go out without payment details and buyers are told to telephone you to confirm the account. That is deliberate — an invented account number is how money goes missing.'
+  });
+}
+
+async function saveCompany(request, body, account) {
+  const patch = { updated_at: new Date().toISOString(), updated_by: account.id };
+  let touched = 0;
+  for (const f of COMPANY_FIELDS) {
+    if (!(f in body)) continue;
+    const v = body[f];
+    patch[f] = (v === '' || v == null) ? null : String(v).slice(0, 600).trim();
+    touched++;
+  }
+  if (!touched) return fail('nothing_to_save');
+
+  const before = await pgGet('company_settings?select=*&id=eq.1&limit=1');
+  await pgPatch('company_settings?id=eq.1', patch);
+  /* Bank fields are audited because a change here changes where money lands. */
+  await audit(account, 'company.updated', {
+    target_table: 'company_settings', target_id: '1',
+    before: pick(before && before[0], COMPANY_FIELDS), after: pick(patch, COMPANY_FIELDS),
+    ip: clientIp(request)
+  });
+  return await getCompany();
+}
+const pick = (o, keys) => {
+  const out = {};
+  if (!o) return out;
+  keys.forEach(k => { if (k in o) out[k] = o[k]; });
+  return out;
+};
+
 /* ---------------- INVOICES ---------------- */
 async function issueInvoice(request, body, account) {
   const orderId = String(body.order_id || '');
@@ -498,13 +571,21 @@ async function issueInvoice(request, body, account) {
   const total = body.total_pkr != null ? Number(body.total_pkr) : Number(o.total_pkr);
   if (!(total > 0)) return fail('bad_total');
 
+  /* Snapshot the company and bank details as they stand right now. If the
+     bank changes next year, an invoice already in a buyer's hands must not
+     silently change with it. */
+  const csRows = await pgGet('company_settings?select=*&id=eq.1&limit=1').catch(() => null);
+  const cs = (csRows && csRows[0]) || {};
+  const snapshot = pick(cs, COMPANY_FIELDS);
+  const bankReady = !!((cs.bank_iban || cs.bank_account) && cs.bank_title);
+
   const made = await pgInsert('invoices', [{
     number, order_id: orderId,
     due_at: body.due_at || null,
     total_pkr: total,
-    amount_words_en: body.amount_words_en || null,
-    amount_words_ur: body.amount_words_ur || null,
-    bank_details: body.bank_details || null,
+    amount_words_en: body.amount_words_en || amountInWordsEn(total),
+    amount_words_ur: body.amount_words_ur || amountInWordsUr(total),
+    bank_details: Object.keys(snapshot).length ? snapshot : null,
     lines: items,
     issued_by: account.id,
     status: 'issued'
@@ -514,7 +595,14 @@ async function issueInvoice(request, body, account) {
     target_table: 'invoices', target_id: number,
     after: { total_pkr: total, order: o.ref }, ip: clientIp(request)
   });
-  return json({ ok: true, invoice: made && made[0] });
+  return json({
+    ok: true, invoice: made && made[0], pdf_url: '/api/invoice/' + encodeURIComponent(number) + '.pdf',
+    bank_ready: bankReady,
+    warning: bankReady ? null
+      : 'This invoice has no bank details on it, because none are saved in Settings yet. It tells the buyer to telephone you to confirm the account before paying.',
+    warning_ur: bankReady ? null
+      : 'اِس بل پر بینک کی تفصیل نہیں ہے، کیونکہ ابھی سیٹنگز میں محفوظ نہیں۔ بل میں خریدار کو لکھا ہے کہ رقم بھیجنے سے پہلے آپ سے فون پر اکاؤنٹ کی تصدیق کریں۔'
+  });
 }
 
 async function markPaid(request, body, account) {
@@ -632,6 +720,7 @@ export default async (request) => {
         case 'audit':                           return await auditLog();
         case 'quote-preview':                   return await quotePreview(request);
         case 'consolidations':                  return await listConsolidations();
+        case 'company':                         return await getCompany();
         default: return fail('unknown_route', 404);
       }
     }
@@ -646,6 +735,7 @@ export default async (request) => {
       case 'agent-jobs/approve':   return await approveJob(request, body, account);
       case 'invoices/issue':       return await issueInvoice(request, body, account);
       case 'invoices/paid':        return await markPaid(request, body, account);
+      case 'company/save':         return await saveCompany(request, body, account);
       case 'consolidations/save':  return await saveConsolidation(request, body, account);
       case 'consolidations/status':return await setConsolidationStatus(request, body, account);
       default: return fail('unknown_route', 404);

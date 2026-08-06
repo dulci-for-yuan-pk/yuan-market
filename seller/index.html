@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="zh" dir="ltr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#05080C">
+<meta name="robots" content="noindex,nofollow">
+<title>我的店铺 — 元市场</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Inter+Tight:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Nastaliq+Urdu:wght@400;600;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/yuan.css">
+<link rel="stylesheet" href="/assets/admin.css">
+</head>
+<body class="zh">
+<div class="field" aria-hidden="true"><i class="f1"></i><i class="f2"></i><i class="f3"></i></div>
+<div class="noise" aria-hidden="true"></div>
+
+<nav class="nav" id="nav">
+  <a class="brand" href="/seller/"><span class="mark">元</span>
+    <span><b>yuan<i>.pk</i></b><small>供应商</small></span></a>
+  <div class="navtools" style="margin-inline-start:auto">
+    <div class="ratepill" id="ratePill"><span class="led"></span><span class="k">¥1 =</span><span class="v num" id="rateVal">—</span></div>
+    <button class="chip sq" id="themeBtn" title="日间/夜间"><span id="themeIco">☾</span></button>
+    <button class="chip" id="langBtn"><span id="langLabel">English</span></button>
+    <span class="chip" id="whoami"></span>
+    <button class="chip" id="signOut">退出</button>
+  </div>
+</nav>
+
+<main class="shell" style="padding-block:clamp(20px,3.4vw,44px)">
+  <div id="shop"><div class="skel" style="height:40vh;border-radius:var(--r-l)"></div></div>
+</main>
+
+<footer class="foot"><div class="shell foot-bar">
+  <span class="num ltr">© <span id="yr">2026</span> Yuan.pk Pvt. Ltd.</span>
+  <span class="num" id="fxFoot"></span>
+</div></footer>
+
+<div class="scrim" id="scrim"></div>
+<div class="sheet glass-sheet" id="sheet"><div class="grab"></div><div id="sheetBody"></div></div>
+
+<script src="/assets/i18n.js"></script>
+<script src="/assets/yuan.js"></script>
+<script src="/assets/seller.js"></script>
+</body>
+</html>

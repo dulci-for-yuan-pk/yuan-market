@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /admin/
+Disallow: /seller/
+Disallow: /account/
+Disallow: /cart/
 
 Sitemap: https://yuan.pk/sitemap.xml
