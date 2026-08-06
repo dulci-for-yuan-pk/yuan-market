@@ -18,6 +18,11 @@ const money = v => (v == null || isNaN(v)) ? '—'
   : new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.round(Number(v)));
 const money2 = v => (v == null || isNaN(v)) ? '—'
   : new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(v));
+/* buyer_city is stored as a URL slug on an order; an invoice must read
+   like a letter, not like a link. */
+const prettyCity = v => !v ? null : String(v).replace(/-/g, ' ')
+  .replace(/\b[a-z]/g, c => c.toUpperCase());
+
 const day = iso => {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -63,7 +68,7 @@ export function invoicePdf({ invoice, order, items, company, breakdown }) {
   const to = [
     order.buyer_name,
     order.buyer_address,
-    order.buyer_city,
+    prettyCity(order.buyer_city),
     order.buyer_phone,
     'Order ' + (order.ref || '')
   ].filter(Boolean);
@@ -101,12 +106,16 @@ export function invoicePdf({ invoice, order, items, company, breakdown }) {
   /* ---------- landed cost, itemised ----------
      The whole promise of Yuan.pk is that the buyer sees every line. So
      every line is printed, including our own commission. */
-  const lines = (breakdown && Array.isArray(breakdown.lines)) ? breakdown.lines : [];
-  if (lines.length) {
-    if (y > d.H - 260) { d.newPage(); y = M; }
-    d.text('HOW THIS TOTAL IS BUILT', M, y, { size: 7.5, bold: true, color: GREY });
-    y += 15;
-    lines.forEach(l => {
+  /* A basket spanning several categories is costed per category, because duty
+     differs by HS code and averaging it would be a lie. So the breakdown may
+     arrive as groups rather than a flat list — print both shapes. */
+  const groups = (breakdown && Array.isArray(breakdown.groups) && breakdown.groups.length)
+    ? breakdown.groups
+    : (breakdown && Array.isArray(breakdown.lines) && breakdown.lines.length
+        ? [{ category_slug: null, lines: breakdown.lines }] : []);
+
+  const printLines = ls => {
+    ls.forEach(l => {
       if (y > d.H - 150) { d.newPage(); y = M; }
       d.text(String(l.label || l.id || '').slice(0, 58), M + 6, y, { size: 9, color: INK });
       /* Say out loud which figures are confirmed and which are still an
@@ -123,6 +132,34 @@ export function invoicePdf({ invoice, order, items, company, breakdown }) {
         RIGHT - 6, y, { size: 9, align: 'right', color: INK });
       y += 15;
     });
+  };
+
+  if (groups.length) {
+    if (y > d.H - 260) { d.newPage(); y = M; }
+    d.text('HOW THIS TOTAL IS BUILT', M, y, { size: 7.5, bold: true, color: GREY });
+    y += 15;
+    groups.forEach(g => {
+      if (groups.length > 1 && g.category_slug) {
+        if (y > d.H - 150) { d.newPage(); y = M; }
+        d.text(String(g.category_slug).replace(/-/g, ' '), M + 6, y,
+          { size: 8, bold: true, color: GOLD });
+        y += 14;
+      }
+      printLines(g.lines || []);
+      if (groups.length > 1) y += 4;
+    });
+    if (breakdown && breakdown.commission_pkr != null) {
+      if (y > d.H - 150) { d.newPage(); y = M; }
+      d.text('Yuan.pk service fee', M + 6, y, { size: 9, color: INK });
+      d.text(money(breakdown.commission_pkr), RIGHT - 6, y, { size: 9, align: 'right', color: INK });
+      y += 15;
+    }
+    if (breakdown && breakdown.cbm_incomplete) {
+      y += 2;
+      y = d.para('Freight is not yet inside this total: the carton size for one or more items ' +
+        'is not on record. It is charged separately at cost, with the receipt shown to you.',
+        M + 6, y, RIGHT - M - 12, { size: 8, color: [0.62, 0.42, 0.10] });
+    }
     y += 4;
   }
 
