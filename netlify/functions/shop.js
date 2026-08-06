@@ -289,7 +289,8 @@ async function checkout(request, body, account) {
     });
   }
 
-  let subtotal = 0, commission = 0, confirmed = 0, estimated = 0, unsourced = 0;
+  let subtotal = 0, commission = 0, confirmed = 0, estimated = 0, unsourced = 0, pendingInput = 0;
+  const groups = [];
   for (const [slug, g] of Object.entries(perCategory)) {
     const landed = await computeLanded({
       goods_cny: g.goods_cny, category_slug: slug === 'unknown' ? null : slug,
@@ -302,6 +303,20 @@ async function checkout(request, body, account) {
     confirmed += landed.completeness.confirmed;
     estimated += landed.completeness.estimated;
     unsourced += landed.completeness.unsourced;
+    pendingInput += landed.completeness.pending_input || 0;
+    /* Keep the itemised working, per category. The whole promise of this
+       market is that the buyer can see every line — so the lines have to
+       survive checkout, not just be used to reach a total and discarded. */
+    groups.push({
+      category_slug: slug === 'unknown' ? null : slug,
+      goods_cny: Number(g.goods_cny.toFixed(2)),
+      units: g.units || 0,
+      cbm: g.cbm || null,
+      lines: landed.lines,
+      subtotal_cost_pkr: landed.subtotal_cost_pkr,
+      commission_pkr: landed.commission.amount_pkr,
+      completeness: landed.completeness
+    });
   }
 
   const made = await pgInsert('orders', [{
@@ -318,7 +333,18 @@ async function checkout(request, body, account) {
     total_pkr: Math.round(subtotal + commission),
     cbm: Number(totalCbm.toFixed(4)),
     buyer_note: body.note ? String(body.note).slice(0, 1000) : null,
-    completeness: { confirmed, estimated, unsourced, is_final: unsourced === 0 && estimated === 0 }
+    breakdown: {
+      fx_rate: rates.rate, fx_source: rates.source || null, fx_as_of: rates.as_of || null,
+      goods_cny: Number(goodsCny.toFixed(2)),
+      total_cbm: Number(totalCbm.toFixed(4)),
+      cbm_incomplete: totalCbm <= 0 || pendingInput > 0,
+      subtotal_cost_pkr: Math.round(subtotal),
+      commission_pct: 20, commission_pkr: Math.round(commission),
+      total_pkr: Math.round(subtotal + commission),
+      groups
+    },
+    completeness: { confirmed, estimated, unsourced, pending_input: pendingInput,
+      is_final: unsourced === 0 && estimated === 0 && pendingInput === 0 }
   }]);
   const order = made && made[0];
   if (!order) return fail('order_failed', 500);
@@ -337,7 +363,7 @@ async function checkout(request, body, account) {
 async function myOrders(request, account) {
   const rows = await pgGet(
     'orders?select=id,ref,status,total_pkr,goods_cny,commission_pkr,cbm,city_slug,' +
-    'buyer_address,created_at,updated_at,completeness,consolidation_id' +
+    'buyer_address,created_at,updated_at,completeness,consolidation_id,breakdown' +
     `&buyer_account_id=eq.${account.id}&order=created_at.desc&limit=50`
   ) || [];
 
