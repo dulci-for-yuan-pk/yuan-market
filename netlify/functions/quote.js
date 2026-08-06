@@ -77,7 +77,7 @@ export default async (request) => {
       category_slug: categorySlug,
       listing_id: l.id,
       units: quantity,
-      fx, cbm
+      fx, cbm, cbm_basis: vol.basis
     });
     if (!landed.ok) return fail(landed.reason, 503, { message: landed.message });
 
