@@ -90,7 +90,9 @@ export async function computeLanded(o) {
   const lines = [];
   const push = (id, res, amount_pkr, extra = {}) => lines.push({
     id, label: res.label || id, label_ur: res.label_ur || null,
-    basis: res.basis, value: res.value, unit: res.unit || null,
+    // every key is always present (null when absent) so consumers never have
+    // to distinguish "missing key" from "no value"
+    basis: res.basis, value: res.value == null ? null : res.value, unit: res.unit || null,
     amount_pkr: amount_pkr == null ? null : Math.round(amount_pkr),
     source: res.source || null, source_url: res.source_url || null,
     confidence: res.confidence || null, checked_at: res.checked_at || null,
