@@ -58,6 +58,7 @@
       if (d.listings && d.listings.length){
         grid.innerHTML = d.listings.map(window.YuanCard).join('');
         Y.observe(grid);
+        if (window.YuanWatchLanded) window.YuanWatchLanded(grid);
         if (count) count.innerHTML = `<span class="num">${d.listings.length}</span> ${esc(Y.t('list.count'))}`;
       } else {
         grid.innerHTML = window.YuanEmpty('list.empty.p');

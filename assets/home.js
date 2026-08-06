@@ -135,6 +135,13 @@
           <small>${pkr ? pkr + ' PKR' : ''}</small></div>
         <div class="qv-moq">${esc(Y.t('p.moq'))}<b class="num">${Y.n0(l.moq)}</b></div>
       </div>
+      <!-- Landed cost, filled in from the real engine. Shown to everyone,
+           signed in or not — a shopkeeper has to be able to do his own sums
+           before he trusts us with an account. -->
+      <div class="qv-landed" data-qv-landed="${esc(l.slug)}" data-qv-moq="${startQty}">
+        <span class="k">${esc(Y.t('p.landed'))} ${esc(Y.t('p.unit.' + (l.unit || 'piece')) || l.unit || '')}</span>
+        <span class="v num ltr dim">…</span>
+      </div>
       <div class="qv-acts">
         <input class="qv-qty" type="number" min="1" value="${startQty}" data-qv-qty
                aria-label="${esc(Y.t('p.qty'))}">
@@ -142,6 +149,53 @@
       </div>
     </div>`;
   }
+
+  /* One quote per slug+quantity, remembered, so hovering across a grid of
+     cards does not fire the same calculation again and again. */
+  const QCACHE = new Map();
+  async function landedPerUnit(slug, qty) {
+    const key = slug + '@' + qty;
+    if (QCACHE.has(key)) return QCACHE.get(key);
+    const p = Y.api('/api/quote?slug=' + encodeURIComponent(slug) + '&qty=' + encodeURIComponent(qty))
+      .then(d => ({ per_unit: d.per_unit_pkr, total: d.total_pkr,
+                    estimated: !!((d.completeness || {}).estimated || (d.completeness || {}).pending_input) }))
+      .catch(() => null);
+    QCACHE.set(key, p);
+    return p;
+  }
+
+  async function fillLanded(el) {
+    if (!el || el.dataset.done) return;
+    el.dataset.done = '1';
+    const v = el.querySelector('.v');
+    const d = await landedPerUnit(el.dataset.qvLanded, el.dataset.qvMoq);
+    if (!d || d.per_unit == null) { if (v) v.textContent = '—'; return; }
+    if (v) {
+      v.classList.remove('dim');
+      v.innerHTML = `<b>${Y.n0(d.per_unit)} PKR</b>` +
+        (d.estimated ? ` <span class="confirm-note">${esc(Y.t('q.estimated'))}</span>` : '');
+    }
+  }
+
+  /* Fill when a card is actually revealed, not for every card on the page. */
+  const landedIO = ('IntersectionObserver' in window)
+    ? new IntersectionObserver(es => es.forEach(e => {
+        if (e.isIntersecting) { fillLanded(e.target); landedIO.unobserve(e.target); }
+      }), { rootMargin: '120px' })
+    : null;
+
+  function watchLanded(root) {
+    $$('[data-qv-landed]', root || document).forEach(el => {
+      if (landedIO) landedIO.observe(el); else fillLanded(el);
+    });
+  }
+  window.YuanWatchLanded = watchLanded;
+
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest && e.target.closest('.card');
+    const box = el && el.querySelector('[data-qv-landed]');
+    if (box) fillLanded(box);
+  }, { passive: true });
 
   /* add to basket straight from the grid */
   document.addEventListener('click', async e => {
@@ -197,6 +251,7 @@
         if (d.listings && d.listings.length){
           grid.innerHTML = d.listings.map(card).join('');
           Y.observe(grid);
+          watchLanded(grid);
           if (count) count.innerHTML = `<span class="num">${d.listings.length}</span> ${esc(Y.t('list.count'))}`;
         } else {
           grid.innerHTML = empty('list.empty.p');
