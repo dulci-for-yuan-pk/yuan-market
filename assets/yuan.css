@@ -571,3 +571,50 @@ body.ur .drawer a{font-family:var(--urdu)}
   *,*::before,*::after{animation-duration:.001ms!important;transition-duration:.001ms!important}
   .rv{opacity:1;transform:none}
 }
+
+/* ============================================================
+   HOVER QUICK-VIEW
+   Reveals price, MOQ and a direct order action without leaving the
+   grid. Hover does not exist on touch, so there the panel is always
+   visible in a compact form instead of being unreachable.
+   ============================================================ */
+.card{position:relative}
+.qv{
+  position:absolute;inset-inline:0;bottom:0;z-index:4;
+  padding:13px 15px 15px;
+  background:var(--mat-sheet);
+  backdrop-filter:blur(var(--blur-lg)) saturate(var(--sat));
+  -webkit-backdrop-filter:blur(var(--blur-lg)) saturate(var(--sat));
+  border-top:1px solid var(--hair-2);
+  transform:translateY(101%);opacity:0;
+  transition:transform .42s var(--e-out),opacity .32s var(--e-out);
+  pointer-events:none;
+}
+@media(hover:hover){
+  .card:hover .qv,.card:focus-within .qv{transform:none;opacity:1;pointer-events:auto}
+  .card:hover .card-img img{transform:scale(1.07)}
+}
+.qv-row{display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-bottom:10px}
+.qv-price{font-family:var(--display);font-size:18px;font-weight:700;color:var(--gold);line-height:1.1}
+.qv-price small{display:block;font-size:11.5px;font-weight:600;color:var(--fg-2);margin-top:3px}
+.qv-moq{font-size:11px;color:var(--fg-3);text-align:end;line-height:1.4}
+.qv-moq b{display:block;font-size:14px;color:var(--fg);font-variant-numeric:tabular-nums}
+.qv-acts{display:flex;gap:7px}
+.qv-acts .btn{flex:1;height:34px;font-size:12.5px;padding:0 10px}
+.qv-qty{
+  width:66px;height:34px;padding:0 8px;border-radius:99px;text-align:center;
+  background:var(--mat-2);border:1px solid var(--hair-2);color:var(--fg);
+  font-variant-numeric:tabular-nums;direction:ltr;font-size:13px;font-weight:600;
+}
+/* Touch devices get a permanently visible compact strip — a hover-only
+   affordance would simply be unreachable on a phone. */
+@media(hover:none){
+  .qv{position:static;transform:none;opacity:1;pointer-events:auto;
+      background:transparent;backdrop-filter:none;-webkit-backdrop-filter:none;
+      border-top:1px dashed var(--hair);padding:11px 0 0;margin-top:10px}
+  .qv-row{display:none}
+}
+.qv-done{
+  display:flex;align-items:center;justify-content:center;gap:7px;height:34px;
+  font-size:12.5px;font-weight:650;color:var(--ok);
+}

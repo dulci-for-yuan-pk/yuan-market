@@ -148,6 +148,7 @@
     Y.observe(document);
     Y.loadFx();
     Y.loadSession();
+    Y.bumpCart();
   }
 
   /* ---------------- REVEAL ---------------- */
@@ -204,6 +205,19 @@
     }
     applyLang(LANG, false);
   }
+
+  /* ---------------- CART BADGE ---------------- */
+  Y.bumpCart = async function(){
+    const el = $('#cartCount');
+    if (!el) return;
+    try {
+      const d = await fetch('/api/shop/cart', { credentials:'same-origin' });
+      if (!d.ok) { el.textContent = ''; return; }
+      const j = await d.json();
+      const n = (j.cart && j.cart.items) ? j.cart.items.length : 0;
+      el.textContent = n ? String(n) : '';
+    } catch (e) { el.textContent = ''; }
+  };
 
   /* ---------------- API HELPER ---------------- */
   Y.api = async function(path, opts){

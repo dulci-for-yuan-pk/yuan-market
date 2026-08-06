@@ -139,7 +139,10 @@ window.YUAN_I18N = {
     'auth.welcome':'Welcome',
     'auth.signedin':'You are signed in.',
     'auth.why':'Why an account?',
-    'auth.why.body':'So we can quote you properly, keep your order history, and send you a real invoice. Browsing needs no account at all.'
+    'auth.why.body':'So we can quote you properly, keep your order history, and send you a real invoice. Browsing needs no account at all.',
+    'qv.add':'Add to basket',
+    'qv.added':'In your basket',
+    'qv.view':'Full breakdown'
 
   },
 
@@ -261,7 +264,10 @@ window.YUAN_I18N = {
     'auth.welcome':'خوش آمدید',
     'auth.signedin':'آپ داخل ہو چکے ہیں۔',
     'auth.why':'اکاؤنٹ کیوں؟',
-    'auth.why.body':'تاکہ ہم آپ کو صحیح حساب دے سکیں، آپ کے پرانے آرڈر محفوظ رہیں، اور آپ کو باقاعدہ بل بھیج سکیں۔ صرف مارکیٹ دیکھنے کے لیے اکاؤنٹ کی ضرورت نہیں۔'
+    'auth.why.body':'تاکہ ہم آپ کو صحیح حساب دے سکیں، آپ کے پرانے آرڈر محفوظ رہیں، اور آپ کو باقاعدہ بل بھیج سکیں۔ صرف مارکیٹ دیکھنے کے لیے اکاؤنٹ کی ضرورت نہیں۔',
+    'qv.add':'ٹوکری میں ڈالیں',
+    'qv.added':'ٹوکری میں ہے',
+    'qv.view':'پورا حساب'
 
   },
 
@@ -330,7 +336,10 @@ window.YUAN_I18N = {
     'auth.err.too_many_attempts':'尝试次数过多，请稍候几分钟。',
     'auth.err.generic':'出错了，请重试。',
     'auth.welcome':'欢迎',
-    'auth.signedin':'您已登录。'
+    'auth.signedin':'您已登录。',
+    'qv.add':'加入购物车',
+    'qv.added':'已加入',
+    'qv.view':'完整成本'
 
   }
 };
